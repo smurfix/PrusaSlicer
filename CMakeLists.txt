@@ -175,7 +175,7 @@ if (NOT MSVC AND ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMP
 
     #removes LOTS of extraneous Eigen warnings (GCC only supports it since 6.1)
     #https://eigen.tuxfamily.org/bz/show_bug.cgi?id=1221
-    if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 6.1)
+    if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6.0)
         add_compile_options(-Wno-ignored-attributes)
     endif()
 
