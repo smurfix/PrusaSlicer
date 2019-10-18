@@ -62,15 +62,15 @@ SCENARIO( "PrintGCode basic functionality", "[PrintGCode]") {
             }
             THEN("Infill is emitted.") {
                 std::smatch has_match;
-                REQUIRE(std::regex_search(gcode, has_match, infill_regex));
+                REQUIRE(std::regex_search(gcode, has_match, infill_regex) == true);
             }
             THEN("Perimeters are emitted.") {
                 std::smatch has_match;
-                REQUIRE(std::regex_search(gcode, has_match, perimeters_regex));
+                REQUIRE((std::regex_search(gcode, has_match, perimeters_regex)));
             }
             THEN("Skirt is emitted.") {
                 std::smatch has_match;
-                REQUIRE(std::regex_search(gcode, has_match, skirt_regex));
+                REQUIRE((std::regex_search(gcode, has_match, skirt_regex)) == true);
             }
             THEN("final Z height is 20mm") {
                 double final_z = 0.0;
