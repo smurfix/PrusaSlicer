@@ -104,7 +104,7 @@ ExternalProject_Add(dep_wxwidgets
     CONFIGURE_COMMAND ./configure
         "--prefix=${DESTDIR}/usr/local"
         --disable-shared
-        --with-gtk=2
+        --with-gtk=3
         --with-opengl
         --enable-unicode
         --enable-graphics_ctx
