@@ -1,3 +1,9 @@
+slic3r-prusa (2.1.0+dfsg1-1) unstable; urgency=medium
+
+  * Current main branch.
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Mon, 02 Dec 2019 22:19:35 +0100
+
 slic3r-prusa (1.41.2+dfsg-1) unstable; urgency=medium
 
   * [8e0dd8b] Build-dep on libcurl4-gnutls-dev
