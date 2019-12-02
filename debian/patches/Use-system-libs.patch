@@ -1,0 +1,21 @@
+From: Chow Loong Jin <hyperair@debian.org>
+Date: Thu, 17 Nov 2016 23:16:26 +0800
+Subject: Use system libs
+
+---
+ xs/src/libslic3r/Format/AMF.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/xs/src/libslic3r/Format/AMF.cpp b/xs/src/libslic3r/Format/AMF.cpp
+index 5aa922f..c7793a4 100644
+--- a/xs/src/libslic3r/Format/AMF.cpp
++++ b/xs/src/libslic3r/Format/AMF.cpp
+@@ -1,7 +1,7 @@
+ #include <string.h>
+ #include <map>
+ #include <string>
+-#include <expat/expat.h>
++#include <expat.h>
+ 
+ #include <boost/nowide/cstdio.hpp>
+ 

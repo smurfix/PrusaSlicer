@@ -1,0 +1,18 @@
+From: Chow Loong Jin <hyperair@debian.org>
+Date: Wed, 2 Jan 2019 00:19:40 +0800
+Subject: Fix hashbang to use /usr/bin/perl
+
+---
+ slic3r.pl | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/slic3r.pl b/slic3r.pl
+index 59765fe..968ecbd 100755
+--- a/slic3r.pl
++++ b/slic3r.pl
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env perl
++#!/usr/bin/perl
+ 
+ use strict;
+ use warnings;

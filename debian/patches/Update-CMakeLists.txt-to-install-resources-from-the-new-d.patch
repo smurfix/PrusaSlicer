@@ -1,0 +1,24 @@
+From: Chow Loong Jin <hyperair@debian.org>
+Date: Tue, 13 Mar 2018 08:57:44 +0800
+Subject: Update CMakeLists.txt to install resources from the new directory
+
+---
+ CMakeLists.txt | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 8e3d8ad..9336c7d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -94,7 +94,9 @@ add_test (NAME integration COMMAND "${PERL_EXECUTABLE}" ${PERL_PROVE} WORKING_DI
+ 
+ install(PROGRAMS slic3r.pl DESTINATION bin RENAME slic3r-prusa3d)
+ 
+-file(GLOB MyVar var/*.png)
+-install(FILES ${MyVar} DESTINATION share/slic3r-prusa3d)
++file(GLOB resdirs resources/*/)
++file(GLOB resfiles LIST_DIRECTORIES false resources/*)
++install(FILES ${resfiles} DESTINATION share/slic3r-prusa3d)
++install(DIRECTORY ${resdirs} DESTINATION share/slic3r-prusa3d)
+ install(FILES lib/Slic3r.pm DESTINATION lib/slic3r-prusa3d)
+ install(DIRECTORY lib/Slic3r DESTINATION lib/slic3r-prusa3d)

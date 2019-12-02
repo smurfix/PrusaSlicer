@@ -1,0 +1,6 @@
+Move-Slic3r-data-to-usr-share-slic3r-prusa.patch
+Add-usr-lib-slic3r-prusa-to-lib-search-path.patch
+Use-system-libs.patch
+Update-CMakeLists.txt-to-install-resources-from-the-new-d.patch
+Fix-hashbang-to-use-usr-bin-perl.patch
+Install-XS-files-into-usr-lib-slic3r-prusa3d.patch

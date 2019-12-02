@@ -1,0 +1,238 @@
+slic3r-prusa (1.41.2+dfsg-1) unstable; urgency=medium
+
+  * [8e0dd8b] Build-dep on libcurl4-gnutls-dev
+  * [6051ff5] Update debian/copyright to include bundled avrdude
+  * [c86a849] New upstream version 1.41.0+dfsg
+  * [f002bbb] Drop upstreamed patch
+  * [cd5213c] New upstream version 1.41.2+dfsg
+  * [1f0a4b0] New upstream version 1.41.2+dfsg
+  * [cf78089] Add new build-deps
+  * [b793385] Exclude precompiled windows binary in avrdude folder, and
+    atmel-docs. atmel-docs contains minified jquery files and other
+    source-is-missing files, but this isn't strictly necessary for slic3r-prusa
+    so toss the whole thing out.
+  * [62e4ee1] Fix licenses in debian/copyright
+  * [74a499e] Update vcs fields for salsa
+  * [290bfac] Refresh patches and fix hashbang of /usr/bin/slic3r-prusa3d
+  * [80c860f] Fix installation path of perl bits
+  * [2c210f6] Use optional build-dep for libnlopt-cxx-dev.
+    C++ interface was in libnlopt-dev before 2.4.2+dfsg-5.
+
+ -- Chow Loong Jin <hyperair@debian.org>  Wed, 27 Feb 2019 11:07:00 +0800
+
+slic3r-prusa (1.40.0+dfsg-1) unstable; urgency=medium
+
+  * [ad2db45] New upstream version 1.40.0+dfsg
+  * [75dda07] Refresh patches
+
+ -- Chow Loong Jin <hyperair@debian.org>  Sun, 01 Jul 2018 03:06:53 +0800
+
+slic3r-prusa (1.39.2+dfsg-1) unstable; urgency=medium
+
+  * [7f4fb4d] New upstream version 1.39.2+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Mon, 07 May 2018 00:41:59 +0800
+
+slic3r-prusa (1.39.1+dfsg-3) unstable; urgency=medium
+
+  * [0f31b95] Reduce debug info to avoid running out of address space on mips.
+    Thanks to Adrian Bunk <bunk@debian.org> (Closes: #895214)
+
+ -- Chow Loong Jin <hyperair@debian.org>  Tue, 10 Apr 2018 15:01:30 +0800
+
+slic3r-prusa (1.39.1+dfsg-2) unstable; urgency=medium
+
+  * [3fb5ec7] Fix format-security FTBFS (Closes: #892959)
+
+ -- Chow Loong Jin <hyperair@debian.org>  Mon, 19 Mar 2018 12:17:00 +0800
+
+slic3r-prusa (1.39.1+dfsg-1) unstable; urgency=medium
+
+  * [f77b280] debian/watch: Fix filenamemangle
+  * [91a4788] New upstream version 1.39.1+dfsg
+  * [c8af33b] Refresh patches
+  * [136dd9c] Fix resources installation
+  * [b14e7ae] Update icon symlinks for new icon path
+
+ -- Chow Loong Jin <hyperair@debian.org>  Mon, 12 Mar 2018 03:47:30 +0800
+
+slic3r-prusa (1.39.0+dfsg-1) unstable; urgency=medium
+
+  * [280aee8] New upstream version 1.39.0+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Tue, 23 Jan 2018 01:43:03 +0800
+
+slic3r-prusa (1.38.0+dfsg-1) unstable; urgency=medium
+
+  * [df02f1c] New upstream version 1.38.0+dfsg
+  * [7eec4d5] Drop upstreamed admesh big-endian patch
+  * [ac81797] Bump Standards-Version to 4.1.1
+
+ -- Chow Loong Jin <hyperair@debian.org>  Fri, 03 Nov 2017 23:02:51 +0800
+
+slic3r-prusa (1.37.1+dfsg2-3) unstable; urgency=medium
+
+  * [e6013ee] Run ctest with the verbose flag.
+    This should fix the FTBFS on hppa caused by the lack of output during tests.
+
+ -- Chow Loong Jin <hyperair@debian.org>  Wed, 04 Oct 2017 14:39:48 +0800
+
+slic3r-prusa (1.37.1+dfsg2-2) unstable; urgency=medium
+
+  * [7337428] Ack 1.37.0+dfsg-1.1 NMU:
+    - Fix "Loadable library and perl binary mismatch":
+      add override_dh_perl in debian/rules to make dh_perl search for perl
+      modules in the private directory as well. (Closes: #872275)
+  * [b962ed5] Import patch that fixes big-endian support in admesh
+    (Closes: #869638)
+  * [96ddc54] Bump Standards-Version
+  * [8fd9f76] Update StartupWMClass.
+  * [d077f2a] Update slic3r-prusa's desktop to open files
+
+ -- Chow Loong Jin <hyperair@debian.org>  Mon, 02 Oct 2017 02:24:50 +0800
+
+slic3r-prusa (1.37.1+dfsg2-1) unstable; urgency=medium
+
+  * [1528472] New upstream version 1.37.1+dfsg2
+    - Respin the tarball -- looks like the 1.37.1 tarball first downloaded was
+      actually 1.34.1.
+  * [6a3ab05] Refresh patches
+  * [53ce34f] Use cmake build system
+  * [facbb65] Set BUILD_TESTING=1
+  * [595f15c] Set CMAKE_BUILD_TYPE=Release
+  * [eb42e7c] Build-dep on local::lib
+  * [eafd98e] Fix up paths.
+    Things are now in slic3r-prusa3d instead of slic3r-prusa.
+  * [82955ab] Fix up paths in patches
+  * [0c723ea] Update manpage
+  * [2be9304] Fix line breaking issues in manpage
+
+ -- Chow Loong Jin <hyperair@debian.org>  Wed, 27 Sep 2017 23:54:15 +0800
+
+slic3r-prusa (1.37.1+dfsg-1) unstable; urgency=medium
+
+  * [21d7565] New upstream version 1.37.1+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Wed, 20 Sep 2017 22:43:28 +0800
+
+slic3r-prusa (1.37.0+dfsg-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Fix "Loadable library and perl binary mismatch":
+    add override_dh_perl in debian/rules to make dh_perl search for perl
+    modules in the private directory as well.
+    (Closes: #872275)
+
+ -- gregor herrmann <gregoa@debian.org>  Wed, 23 Aug 2017 19:17:28 +0200
+
+slic3r-prusa (1.37.0+dfsg-1) unstable; urgency=medium
+
+  * [3561f7e] New upstream version 1.37.0+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Sun, 06 Aug 2017 01:04:13 +0800
+
+slic3r-prusa (1.36.2+dfsg-1) unstable; urgency=medium
+
+  * [db314bf] New upstream version 1.36.2+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Mon, 31 Jul 2017 21:26:36 +0800
+
+slic3r-prusa (1.36.0+dfsg-1) unstable; urgency=medium
+
+  * [35f30b1] New upstream version 1.36.0+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Tue, 25 Jul 2017 01:46:22 +0800
+
+slic3r-prusa (1.35.5+dfsg-1) experimental; urgency=medium
+
+  * [e4a7131] New upstream version 1.35.5+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Sun, 18 Jun 2017 19:38:51 +0800
+
+slic3r-prusa (1.35.3+dfsg-2) experimental; urgency=medium
+
+  * [76eb163] New upstream version 1.35.3+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Wed, 14 Jun 2017 23:11:47 +0800
+
+slic3r-prusa (1.35.2+dfsg-1) experimental; urgency=medium
+
+  * [c5c442c] New upstream version 1.35.2+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Fri, 09 Jun 2017 01:58:31 +0800
+
+slic3r-prusa (1.35.1+dfsg-1) experimental; urgency=medium
+
+  * [83eeeb5] New upstream version 1.35.1+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Sun, 04 Jun 2017 02:04:02 +0800
+
+slic3r-prusa (1.35.0+dfsg-1) experimental; urgency=medium
+
+  * [f28744f] New upstream version 1.35.0+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Tue, 23 May 2017 00:42:11 +0800
+
+slic3r-prusa (1.34.1+dfsg-1) experimental; urgency=medium
+
+  * [56183a6] Imported Upstream version 1.34.1+dfsg
+
+ -- Chow Loong Jin <hyperair@debian.org>  Fri, 07 Apr 2017 01:07:46 +0800
+
+slic3r-prusa (1.34.0+dfsg-1) experimental; urgency=medium
+
+  * [0cfd53e] Build-dep on libtbb-dev
+  * [43d066f] Delete glew and expat
+  * [b7d8afa] Rename Use-system-GLEW.patch.
+    We need to unbundle a couple of other libs.
+  * [5175bc5] Fix expat include
+  * [88a0b44] Link against libexpat
+  * [be8218c] Exclude more bundled libraries
+  * [3a32f7f] Imported Upstream version 1.34.0+dfsg
+  * [a157bd0] Imported Upstream version 1.34.0
+  * [d9d46a9] Refresh patches
+  * [0220070] Build-dep on libeigen3-dev
+
+ -- Chow Loong Jin <hyperair@debian.org>  Thu, 06 Apr 2017 01:16:59 +0800
+
+slic3r-prusa (1.33.8-1) experimental; urgency=medium
+
+  * [0c4401b] Imported Upstream version 1.33.8
+
+ -- Chow Loong Jin <hyperair@debian.org>  Wed, 22 Feb 2017 22:56:38 +0800
+
+slic3r-prusa (1.33.7-1) experimental; urgency=medium
+
+  * [4d19e89] Imported Upstream version 1.33.7
+
+ -- Chow Loong Jin <hyperair@debian.org>  Tue, 21 Feb 2017 08:59:23 +0800
+
+slic3r-prusa (1.33.5-1) experimental; urgency=medium
+
+  * [7fba4b2] Imported Upstream version 1.33.5
+
+ -- Chow Loong Jin <hyperair@debian.org>  Sat, 18 Feb 2017 01:19:14 +0800
+
+slic3r-prusa (1.33.3-1) experimental; urgency=medium
+
+  * [4bfc62b] Imported Upstream version 1.33.3
+
+ -- Chow Loong Jin <hyperair@debian.org>  Sat, 11 Feb 2017 17:32:12 +0800
+
+slic3r-prusa (1.33.2-1) experimental; urgency=medium
+
+  * [f895ab7] Imported Upstream version 1.33.2
+
+ -- Chow Loong Jin <hyperair@debian.org>  Fri, 13 Jan 2017 02:20:05 +0800
+
+slic3r-prusa (1.31.6-1) unstable; urgency=medium
+
+  * [c435c86] Imported Upstream version 1.31.6
+
+ -- Chow Loong Jin <hyperair@debian.org>  Wed, 21 Dec 2016 23:17:00 +0800
+
+slic3r-prusa (1.31.4-1) unstable; urgency=medium
+
+  * Initial Debianization (Closes: #844222)
+
+ -- Chow Loong Jin <hyperair@debian.org>  Sun, 13 Nov 2016 21:09:27 +0800
