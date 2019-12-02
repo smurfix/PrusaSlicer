@@ -1,4 +1,3 @@
-Add-usr-lib-slic3r-prusa-to-lib-search-path.patch
 Use-system-libs.patch
 Update-CMakeLists.txt-to-install-resources-from-the-new-d.patch
 Fix-hashbang-to-use-usr-bin-perl.patch
