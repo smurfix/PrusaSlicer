@@ -51,10 +51,10 @@
 #include <Shlobj.h>
 #endif // __WXMSW__
 
-#if ENABLE_THUMBNAIL_GENERATOR
+#if ENABLE_THUMBNAIL_GENERATOR_DEBUG
 #include <boost/beast/core/detail/base64.hpp>
 #include <boost/nowide/fstream.hpp>
-#endif // ENABLE_THUMBNAIL_GENERATOR
+#endif // ENABLE_THUMBNAIL_GENERATOR_DEBUG
 
 namespace Slic3r {
 namespace GUI {
@@ -105,7 +105,7 @@ static void register_dpi_event()
         const auto rect = reinterpret_cast<PRECT>(lParam);
         const wxRect wxrect(wxPoint(rect->top, rect->left), wxPoint(rect->bottom, rect->right));
 
-        DpiChangedEvent evt(EVT_DPI_CHANGED, dpi, wxrect);
+        DpiChangedEvent evt(EVT_DPI_CHANGED_SLICER, dpi, wxrect);
         win->GetEventHandler()->AddPendingEvent(evt);
 
         return true;
@@ -185,7 +185,9 @@ bool GUI_App::on_init_inner()
     wxCHECK_MSG(wxDirExists(resources_dir), false,
         wxString::Format("Resources path does not exist or is not a directory: %s", resources_dir));
 
-    SetAppName(SLIC3R_APP_KEY);
+    // Profiles for the alpha are stored into the PrusaSlicer-alpha directory to not mix with the current release.
+    // SetAppName(SLIC3R_APP_KEY);
+    SetAppName(SLIC3R_APP_KEY "-alpha");
     SetAppDisplayName(SLIC3R_APP_NAME);
 
 // Enable this to get the default Win32 COMCTRL32 behavior of static boxes.
@@ -1126,52 +1128,17 @@ void GUI_App::gcode_thumbnails_debug()
                 }
                 else if (reading_image && boost::starts_with(gcode_line, END_MASK))
                 {
-#if ENABLE_THUMBNAIL_GENERATOR_PNG_TO_GCODE
                     std::string out_filename = out_path + std::to_string(width) + "x" + std::to_string(height) + ".png";
                     boost::nowide::ofstream out_file(out_filename.c_str(), std::ios::binary);
                     if (out_file.good())
                     {
-                        std::string decoded = boost::beast::detail::base64_decode(row);
-                        out_file.write(decoded.c_str(), decoded.length());
+                        std::string decoded;
+                        decoded.resize(boost::beast::detail::base64::decoded_size(row.size()));
+                        decoded.resize(boost::beast::detail::base64::decode((void*)&decoded[0], row.data(), row.size()).first);
+
+                        out_file.write(decoded.c_str(), decoded.size());
                         out_file.close();
                     }
-#else
-                    if (!row.empty())
-                    {
-                        rows.push_back(row);
-                        row.clear();
-                    }
-
-                    if ((unsigned int)rows.size() == height)
-                    {
-                        std::vector<unsigned char> thumbnail(4 * width * height, 0);
-                        for (unsigned int r = 0; r < (unsigned int)rows.size(); ++r)
-                        {
-                            std::string decoded_row = boost::beast::detail::base64_decode(rows[r]);
-                            if ((unsigned int)decoded_row.length() == width * 4)
-                            {
-                                void* image_ptr = (void*)(thumbnail.data() + r * width * 4);
-                                ::memcpy(image_ptr, (const void*)decoded_row.c_str(), width * 4);
-                            }
-                        }
-
-                        wxImage image(width, height);
-                        image.InitAlpha();
-
-                        for (unsigned int r = 0; r < height; ++r)
-                        {
-                            unsigned int rr = r * width;
-                            for (unsigned int c = 0; c < width; ++c)
-                            {
-                                unsigned char* px = thumbnail.data() + 4 * (rr + c);
-                                image.SetRGB((int)c, (int)r, px[0], px[1], px[2]);
-                                image.SetAlpha((int)c, (int)r, px[3]);
-                            }
-                        }
-
-                        image.SaveFile(out_path + std::to_string(width) + "x" + std::to_string(height) + ".png", wxBITMAP_TYPE_PNG);
-                    }
-#endif // ENABLE_THUMBNAIL_GENERATOR_PNG_TO_GCODE
 
                     reading_image = false;
                     width = 0;
@@ -1179,17 +1146,7 @@ void GUI_App::gcode_thumbnails_debug()
                     rows.clear();
                 }
                 else if (reading_image)
-                {
-#if !ENABLE_THUMBNAIL_GENERATOR_PNG_TO_GCODE
-                    if (!row.empty() && (gcode_line[1] == ' '))
-                    {
-                        rows.push_back(row);
-                        row.clear();
-                    }
-#endif // !ENABLE_THUMBNAIL_GENERATOR_PNG_TO_GCODE
-
                     row += gcode_line.substr(2);
-                }
             }
         }
 

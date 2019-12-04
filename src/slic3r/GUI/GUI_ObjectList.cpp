@@ -328,7 +328,7 @@ wxString ObjectList::get_mesh_errors_list(const int obj_idx, const int vol_idx /
         return ""; // hide tooltip
 
     // Create tooltip string, if there are errors 
-    wxString tooltip = wxString::Format(_(L("Auto-repaired (%d errors):\n")), errors);
+    wxString tooltip = wxString::Format(_(L("Auto-repaired (%d errors):")), errors) + "\n";
 
     const stl_stats& stats = vol_idx == -1 ?
                             (*m_objects)[obj_idx]->get_object_stl_stats() :
@@ -524,6 +524,8 @@ void ObjectList::update_extruder_in_config(const wxDataViewItem& item)
 
     if (!m_config)
         return;
+
+    take_snapshot(_(L("Change Extruder")));
 
     const int extruder = m_objects_model->GetExtruderNumber(item);
     m_config->set_key_value("extruder", new ConfigOptionInt(extruder));
@@ -895,10 +897,6 @@ void ObjectList::extruder_editing()
     if (!item || !(m_objects_model->GetItemType(item) & (itVolume | itObject)))
         return;
 
-    std::vector<wxBitmap*> icons = get_extruder_color_icons();
-    if (icons.empty())
-        return;
-
     const int column_width = GetColumn(colExtruder)->GetWidth() + wxSystemSettings::GetMetric(wxSYS_VSCROLL_X) + 5;
 
     wxPoint pos = get_mouse_position_in_control();
@@ -906,29 +904,10 @@ void ObjectList::extruder_editing()
     pos.x = GetColumn(colName)->GetWidth() + GetColumn(colPrint)->GetWidth() + 5;
     pos.y -= GetTextExtent("m").y;
 
-    if (!m_extruder_editor)
-        m_extruder_editor = new wxBitmapComboBox(this, wxID_ANY, wxEmptyString, pos, size,
-                                                 0, nullptr, wxCB_READONLY);
-    else
-    {
-        m_extruder_editor->SetPosition(pos);
-        m_extruder_editor->SetMinSize(size);
-        m_extruder_editor->SetSize(size);
-        m_extruder_editor->Clear();
-        m_extruder_editor->Show();
-    }
+    apply_extruder_selector(&m_extruder_editor, this, L("default"), pos, size);
 
-    int i = 0;
-    for (wxBitmap* bmp : icons) {
-        if (i == 0) {
-            m_extruder_editor->Append(_(L("default")), *bmp);
-            ++i;
-        }
-
-        m_extruder_editor->Append(wxString::Format("%d", i), *bmp);
-        ++i;
-    }
     m_extruder_editor->SetSelection(m_objects_model->GetExtruderNumber(item));
+    m_extruder_editor->Show();
 
     auto set_extruder = [this]()
     {
@@ -940,6 +919,7 @@ void ObjectList::extruder_editing()
             m_objects_model->SetExtruder(m_extruder_editor->GetString(selection), item);
 
         m_extruder_editor->Hide();
+        update_extruder_in_config(item);
     };
 
     // to avoid event propagation to other sidebar items
@@ -948,13 +928,6 @@ void ObjectList::extruder_editing()
         set_extruder();
         evt.StopPropagation();
     });
-    /*
-    m_extruder_editor->Bind(wxEVT_KILL_FOCUS, [set_extruder](wxFocusEvent& evt)
-    {
-        set_extruder();
-        evt.Skip();
-    });*/
-
 }
 
 void ObjectList::copy()
@@ -3874,6 +3847,9 @@ void ObjectList::set_extruder_for_selected_items(const int extruder) const
 {
     wxDataViewItemArray sels;
     GetSelections(sels);
+
+    if (!sels.empty())
+        take_snapshot(_(L("Change Extruders")));
 
     for (const wxDataViewItem& item : sels)
     {

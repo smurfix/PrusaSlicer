@@ -38,8 +38,12 @@
 #define ENABLE_2_2_0_ALPHA1 1
 
 // Enable thumbnail generator
+// When removing this technology, remove it also from stable branch, 
+// where it has been partially copied for patch 2.1.1
 #define ENABLE_THUMBNAIL_GENERATOR (1 && ENABLE_2_2_0_ALPHA1)
 #define ENABLE_THUMBNAIL_GENERATOR_DEBUG (0 && ENABLE_THUMBNAIL_GENERATOR)
-#define ENABLE_THUMBNAIL_GENERATOR_PNG_TO_GCODE (1 && ENABLE_THUMBNAIL_GENERATOR)
+
+// Enable adaptive layer height profile
+#define ENABLE_ADAPTIVE_LAYER_HEIGHT_PROFILE (1 && ENABLE_2_2_0_ALPHA1)
 
 #endif // _technologies_h_
