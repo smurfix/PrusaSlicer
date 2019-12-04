@@ -1,3 +1,9 @@
+slic3r-prusa (2.1.0+dfsg1-2) unstable; urgency=medium
+
+  * Add int() function and modulo operator.
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Wed, 04 Dec 2019 08:34:44 +0100
+
 slic3r-prusa (2.1.0+dfsg1-1) unstable; urgency=medium
 
   * Current main branch.
