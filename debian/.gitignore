@@ -1,0 +1,6 @@
+/.debhelper/
+/files
+/*.debhelper.log
+/*.substvars
+/slic3r-prusa/
+

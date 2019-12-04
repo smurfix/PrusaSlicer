@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Slic3r Prusa Edition
+Icon=slic3r-prusa
+Exec=slic3r-prusa3d --gui %F
+Keywords=perl;slice;3D;printer;convert;gcode;stl;obj;amf;
+StartupNotify=false
+StartupWMClass=slic3r-prusa3d
+MimeType=application/sla;model/x-wavefront-obj;model/x-geomview-off;application/x-amf;
+Categories=Development;Engineering;
