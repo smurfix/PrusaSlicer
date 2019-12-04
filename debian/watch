@@ -1,0 +1,4 @@
+version=3
+
+opts="filenamemangle=s/(?:.*)?version_(\d[\d\.]*)\.tar\.gz/slic3r-prusa-$1.tar.gz/,dversionmangle=s/\+dfsg\d*//,repacksuffix=+dfsg" \
+  https://github.com/prusa3d/Slic3r/tags (?:.*/)?version_(\d[\d\.]*)\.tar\.gz
