@@ -1,3 +1,10 @@
+slic3r-prusa (2.1.0+dfsg4-1) unstable; urgency=medium
+
+  * Return to current master
+  * use FHS
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Wed, 04 Dec 2019 20:33:56 +0100
+
 slic3r-prusa (2.1.0+dfsg1-2) unstable; urgency=medium
 
   * Add int() function and modulo operator.
