@@ -237,7 +237,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas) const
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 
-    imgui.begin(_(L("Layer height profile")), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+    imgui.begin(_(L("Variable layer height")), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
 
     ImGui::PushStyleColor(ImGuiCol_Text, orange);
     imgui.text(_(L("Left mouse button:")));
@@ -299,7 +299,8 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas) const
     ImGui::SetCursorPosX(text_align);
     imgui.text(_(L("Keep min")));
     ImGui::SameLine();
-    ImGui::SetCursorPosX(widget_align);
+    if (ImGui::GetCursorPosX() < widget_align)  // because of line lenght after localization
+        ImGui::SetCursorPosX(widget_align);
     ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
     imgui.checkbox("##2", m_smooth_params.keep_min);
 
@@ -692,7 +693,7 @@ void GLCanvas3D::LayersEditing::accept_changes(GLCanvas3D& canvas)
 {
     if (last_object_id >= 0) {
         if (m_layer_height_profile_modified) {
-            wxGetApp().plater()->take_snapshot(_(L("Layer height profile-Manual edit")));
+            wxGetApp().plater()->take_snapshot(_(L("Variable layer height - Manual edit")));
             const_cast<ModelObject*>(m_model_object)->layer_height_profile = m_layer_height_profile;
 			canvas.post_event(SimpleEvent(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS));
         }
@@ -1336,7 +1337,9 @@ void GLCanvas3D::LegendTexture::render(const GLCanvas3D& canvas) const
     }
 }
 
+#if !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 wxDEFINE_EVENT(EVT_GLCANVAS_INIT, SimpleEvent);
+#endif // !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 wxDEFINE_EVENT(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_OBJECT_SELECT, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_RIGHT_CLICK, RBtnEvent);
@@ -1377,7 +1380,6 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas* canvas, Bed3D& bed, Camera& camera, GLToolbar
     , m_retina_helper(nullptr)
 #endif
     , m_in_render(false)
-    , m_render_enabled(true)
     , m_bed(bed)
     , m_camera(camera)
     , m_view_toolbar(view_toolbar)
@@ -1507,7 +1509,9 @@ bool GLCanvas3D::init()
     if (m_selection.is_enabled() && !m_selection.init())
         return false;
 
+#if !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
     post_event(SimpleEvent(EVT_GLCANVAS_INIT));
+#endif // !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
     m_initialized = true;
 
@@ -1670,7 +1674,7 @@ bool GLCanvas3D::is_layers_editing_allowed() const
 #if ENABLE_ADAPTIVE_LAYER_HEIGHT_PROFILE
 void GLCanvas3D::reset_layer_height_profile()
 {
-    wxGetApp().plater()->take_snapshot(_(L("Layer height profile-Reset")));
+    wxGetApp().plater()->take_snapshot(_(L("Variable layer height - Reset")));
     m_layers_editing.reset_layer_height_profile(*this);
     m_layers_editing.state = LayersEditing::Completed;
     m_dirty = true;
@@ -1678,7 +1682,7 @@ void GLCanvas3D::reset_layer_height_profile()
 
 void GLCanvas3D::adaptive_layer_height_profile(float cusp)
 {
-    wxGetApp().plater()->take_snapshot(_(L("Layer height profile-Adaptive")));
+    wxGetApp().plater()->take_snapshot(_(L("Variable layer height - Adaptive")));
     m_layers_editing.adaptive_layer_height_profile(*this, cusp);
     m_layers_editing.state = LayersEditing::Completed;
     m_dirty = true;
@@ -1686,7 +1690,7 @@ void GLCanvas3D::adaptive_layer_height_profile(float cusp)
 
 void GLCanvas3D::smooth_layer_height_profile(const HeightProfileSmoothingParams& smoothing_params)
 {
-    wxGetApp().plater()->take_snapshot(_(L("Layer height profile-Smooth all")));
+    wxGetApp().plater()->take_snapshot(_(L("Variable layer height - Smooth all")));
     m_layers_editing.smooth_layer_height_profile(*this, smoothing_params);
     m_layers_editing.state = LayersEditing::Completed;
     m_dirty = true;
@@ -1790,7 +1794,7 @@ void GLCanvas3D::update_volumes_colors_by_extruder()
 
 void GLCanvas3D::render()
 {
-    if (!m_render_enabled || m_in_render)
+    if (m_in_render)
     {
         // if called recursively, return
         m_dirty = true;
@@ -1927,7 +1931,7 @@ void GLCanvas3D::render()
 }
 
 #if ENABLE_THUMBNAIL_GENERATOR
-void GLCanvas3D::render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background)
+void GLCanvas3D::render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const
 {
     switch (GLCanvas3DManager::get_framebuffers_type())
     {
@@ -2062,9 +2066,11 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 
     struct GLVolumeState {
         GLVolumeState() :
-            volume_idx(-1) {}
+            volume_idx(size_t(-1)) {}
         GLVolumeState(const GLVolume* volume, unsigned int volume_idx) :
             composite_id(volume->composite_id), volume_idx(volume_idx) {}
+        GLVolumeState(const GLVolume::CompositeID &composite_id) :
+            composite_id(composite_id), volume_idx(size_t(-1)) {}
 
         GLVolume::CompositeID       composite_id;
         // Volume index in the old GLVolume vector.
@@ -2190,22 +2196,13 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
         }
     }
     sort_remove_duplicates(instance_ids_selected);
+    auto deleted_volumes_lower = [](const GLVolumeState &v1, const GLVolumeState &v2) { return v1.composite_id < v2.composite_id; };
+    std::sort(deleted_volumes.begin(), deleted_volumes.end(), deleted_volumes_lower);
 
     if (m_reload_delayed)
         return;
 
     bool update_object_list = false;
-
-    auto find_old_volume_id = [&deleted_volumes](const GLVolume::CompositeID& id) -> unsigned int {
-        for (unsigned int i = 0; i < (unsigned int)deleted_volumes.size(); ++i)
-        {
-            const GLVolumeState& v = deleted_volumes[i];
-            if (v.composite_id == id)
-                return v.volume_idx;
-        }
-        return (unsigned int)-1;
-    };
-
     if (m_volumes.volumes != glvolumes_new)
 		update_object_list = true;
     m_volumes.volumes = std::move(glvolumes_new);
@@ -2220,9 +2217,10 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 				assert(it != model_volume_state.end() && it->geometry_id == key.geometry_id);
                 if (it->new_geometry()) {
                     // New volume.
-                    unsigned int old_id = find_old_volume_id(it->composite_id);
-                    if (old_id != (unsigned int)-1)
-                        map_glvolume_old_to_new[old_id] = m_volumes.volumes.size();
+                    auto it_old_volume = std::lower_bound(deleted_volumes.begin(), deleted_volumes.end(), GLVolumeState(it->composite_id), deleted_volumes_lower);
+                    if (it_old_volume != deleted_volumes.end() && it_old_volume->composite_id == it->composite_id)
+                        // If a volume changed its ObjectID, but it reuses a GLVolume's CompositeID, maintain its selection.
+                        map_glvolume_old_to_new[it_old_volume->volume_idx] = m_volumes.volumes.size();
                     m_volumes.load_object_volume(&model_object, obj_idx, volume_idx, instance_idx, m_color_by, m_initialized);
                     m_volumes.volumes.back()->geometry_id = key.geometry_id;
                     update_object_list = true;
@@ -3833,7 +3831,7 @@ static bool string_getter(const bool is_undo, int idx, const char** out_text)
     return wxGetApp().plater()->undo_redo_string_getter(is_undo, idx, out_text);
 }
 
-void GLCanvas3D::_render_undo_redo_stack(const bool is_undo, float pos_x)
+void GLCanvas3D::_render_undo_redo_stack(const bool is_undo, float pos_x) const
 {
     ImGuiWrapper* imgui = wxGetApp().imgui();
 
@@ -3887,7 +3885,7 @@ static void debug_output_thumbnail(const ThumbnailData& thumbnail_data)
 }
 #endif // ENABLE_THUMBNAIL_GENERATOR_DEBUG_OUTPUT
 
-void GLCanvas3D::_render_thumbnail_internal(ThumbnailData& thumbnail_data, bool printable_only, bool parts_only, bool show_bed, bool transparent_background)
+void GLCanvas3D::_render_thumbnail_internal(ThumbnailData& thumbnail_data, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const
 {
     auto is_visible = [](const GLVolume& v) -> bool
     {
@@ -3977,7 +3975,7 @@ void GLCanvas3D::_render_thumbnail_internal(ThumbnailData& thumbnail_data, bool 
         glsafe(::glClearColor(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
-void GLCanvas3D::_render_thumbnail_framebuffer(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background)
+void GLCanvas3D::_render_thumbnail_framebuffer(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const
 {
     thumbnail_data.set(w, h);
     if (!thumbnail_data.is_valid())
@@ -4081,7 +4079,7 @@ void GLCanvas3D::_render_thumbnail_framebuffer(ThumbnailData& thumbnail_data, un
         glsafe(::glDisable(GL_MULTISAMPLE));
 }
 
-void GLCanvas3D::_render_thumbnail_framebuffer_ext(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background)
+void GLCanvas3D::_render_thumbnail_framebuffer_ext(ThumbnailData & thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const
 {
     thumbnail_data.set(w, h);
     if (!thumbnail_data.is_valid())
@@ -4185,7 +4183,7 @@ void GLCanvas3D::_render_thumbnail_framebuffer_ext(ThumbnailData& thumbnail_data
         glsafe(::glDisable(GL_MULTISAMPLE));
 }
 
-void GLCanvas3D::_render_thumbnail_legacy(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background)
+void GLCanvas3D::_render_thumbnail_legacy(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const
 {
     // check that thumbnail size does not exceed the default framebuffer size
     const Size& cnv_size = get_canvas_size();
@@ -4221,6 +4219,11 @@ bool GLCanvas3D::_init_toolbars()
 
     if (!_init_undoredo_toolbar())
         return false;
+
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+    if (!_init_view_toolbar())
+        return false;
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
     return true;
 }
@@ -4362,7 +4365,7 @@ bool GLCanvas3D::_init_main_toolbar()
 
     item.name = "layersediting";
     item.icon_filename = "layers_white.svg";
-    item.tooltip = _utf8(L("Height ranges"));
+    item.tooltip = _utf8(L("Variable layer height"));
     item.sprite_id = 10;
     item.left.toggable = true;
     item.left.action_callback = [this]() { if (m_canvas != nullptr) wxPostEvent(m_canvas, SimpleEvent(EVT_GLTOOLBAR_LAYERSEDITING)); };
@@ -4478,6 +4481,13 @@ bool GLCanvas3D::_init_undoredo_toolbar()
 
     return true;
 }
+
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+bool GLCanvas3D::_init_view_toolbar()
+{
+    return wxGetApp().plater()->init_view_toolbar();
+}
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
 bool GLCanvas3D::_set_current()
 {

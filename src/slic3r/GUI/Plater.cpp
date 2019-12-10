@@ -1819,6 +1819,10 @@ struct Plater::priv
     bool is_preview_loaded() const { return preview->is_loaded(); }
     bool is_view3D_shown() const { return current_panel == view3D; }
 
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+    bool init_view_toolbar();
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+
     void reset_all_gizmos();
     void update_ui_from_settings();
     ProgressStatusBar* statusbar();
@@ -1964,7 +1968,9 @@ private:
     bool complit_init_object_menu();
     bool complit_init_sla_object_menu();
     bool complit_init_part_menu();
+#if !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
     void init_view_toolbar();
+#endif // !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
     bool can_split() const;
     bool layers_height_allowed() const;
@@ -2116,7 +2122,9 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     view3D_canvas->Bind(EVT_GLTOOLBAR_SPLIT_OBJECTS, &priv::on_action_split_objects, this);
     view3D_canvas->Bind(EVT_GLTOOLBAR_SPLIT_VOLUMES, &priv::on_action_split_volumes, this);
     view3D_canvas->Bind(EVT_GLTOOLBAR_LAYERSEDITING, &priv::on_action_layersediting, this);
+#if !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
     view3D_canvas->Bind(EVT_GLCANVAS_INIT, [this](SimpleEvent&) { init_view_toolbar(); });
+#endif // !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
     view3D_canvas->Bind(EVT_GLCANVAS_UPDATE_BED_SHAPE, [this](SimpleEvent&)
         {
             set_bed_shape(config->option<ConfigOptionPoints>("bed_shape")->values,
@@ -3195,12 +3203,67 @@ void Plater::priv::reload_from_disk()
 
     // collects paths of files to load
     std::vector<fs::path> input_paths;
+#if ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION
+    std::vector<fs::path> missing_input_paths;
+#endif // ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION
     for (const SelectedVolume& v : selected_volumes)
     {
+#if ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION
+        const ModelObject* object = model.objects[v.object_idx];
+        const ModelVolume* volume = object->volumes[v.volume_idx];
+
+        if (!volume->source.input_file.empty())
+        {
+            if (fs::exists(volume->source.input_file))
+                input_paths.push_back(volume->source.input_file);
+            else
+                missing_input_paths.push_back(volume->source.input_file);
+        }
+#else
         const ModelVolume* volume = model.objects[v.object_idx]->volumes[v.volume_idx];
         if (!volume->source.input_file.empty() && boost::filesystem::exists(volume->source.input_file))
             input_paths.push_back(volume->source.input_file);
+#endif // ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION
     }
+
+#if ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION
+    std::sort(missing_input_paths.begin(), missing_input_paths.end());
+    missing_input_paths.erase(std::unique(missing_input_paths.begin(), missing_input_paths.end()), missing_input_paths.end());
+
+    while (!missing_input_paths.empty())
+    {
+        // ask user to select the missing file
+        std::string search = missing_input_paths.back().string();
+        wxFileDialog dialog(q, _(L("Please select the file to reload:")), "", search, file_wildcards(FT_MODEL), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+        if (dialog.ShowModal() != wxID_OK)
+            return;
+
+        std::string sel_filename_path = dialog.GetPath().ToUTF8().data();
+        std::string sel_filename = fs::path(sel_filename_path).filename().string();
+        if (boost::algorithm::iends_with(search, sel_filename))
+        {
+            input_paths.push_back(sel_filename_path);
+            missing_input_paths.pop_back();
+
+            std::string sel_path = fs::path(sel_filename_path).remove_filename().string();
+
+            std::vector<fs::path>::iterator it = missing_input_paths.begin();
+            while (it != missing_input_paths.end())
+            {
+                // try to use the path of the selected file with all remaining missing files
+                std::string repathed_filename = sel_path + "/" + it->filename().string();
+                if (fs::exists(repathed_filename))
+                {
+                    input_paths.push_back(repathed_filename);
+                    it = missing_input_paths.erase(it);
+                }
+                else
+                    ++it;
+            }
+        }
+    }
+#endif // ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION
+
     std::sort(input_paths.begin(), input_paths.end());
     input_paths.erase(std::unique(input_paths.begin(), input_paths.end()), input_paths.end());
 
@@ -3221,7 +3284,6 @@ void Plater::priv::reload_from_disk()
         catch (std::exception&)
         {
             // error while loading
-            view3D->get_canvas3d()->enable_render(true);
             return;
         }
 
@@ -3235,22 +3297,20 @@ void Plater::priv::reload_from_disk()
 
             if (old_volume->source.input_file == path)
             {
-                if (new_object_idx < (int)new_model.objects.size())
+                assert(new_object_idx < (int)new_model.objects.size());
+                ModelObject* new_model_object = new_model.objects[new_object_idx];
+                if (new_volume_idx < (int)new_model_object->volumes.size())
                 {
-                    ModelObject* new_model_object = new_model.objects[new_object_idx];
-                    if (new_volume_idx < (int)new_model_object->volumes.size())
-                    {
-                        old_model_object->add_volume(*new_model_object->volumes[new_volume_idx]);
-                        ModelVolume* new_volume = old_model_object->volumes.back();
-                        new_volume->set_new_unique_id();
-                        new_volume->config.apply(old_volume->config);
-                        new_volume->set_type(old_volume->type());
-                        new_volume->set_material_id(old_volume->material_id());
-                        new_volume->set_transformation(old_volume->get_transformation());
-                        new_volume->translate(new_volume->get_transformation().get_matrix(true) * (new_volume->source.mesh_offset - old_volume->source.mesh_offset));
-                        std::swap(old_model_object->volumes[old_v.volume_idx], old_model_object->volumes.back());
-                        old_model_object->delete_volume(old_model_object->volumes.size() - 1);
-                    }
+                    old_model_object->add_volume(*new_model_object->volumes[new_volume_idx]);
+                    ModelVolume* new_volume = old_model_object->volumes.back();
+                    new_volume->set_new_unique_id();
+                    new_volume->config.apply(old_volume->config);
+                    new_volume->set_type(old_volume->type());
+                    new_volume->set_material_id(old_volume->material_id());
+                    new_volume->set_transformation(old_volume->get_transformation());
+                    new_volume->translate(new_volume->get_transformation().get_matrix(true) * (new_volume->source.mesh_offset - old_volume->source.mesh_offset));
+                    std::swap(old_model_object->volumes[old_v.volume_idx], old_model_object->volumes.back());
+                    old_model_object->delete_volume(old_model_object->volumes.size() - 1);
                 }
             }
         }
@@ -3833,8 +3893,18 @@ bool Plater::priv::complit_init_part_menu()
     return true;
 }
 
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+bool Plater::priv::init_view_toolbar()
+#else
 void Plater::priv::init_view_toolbar()
+#endif //!ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 {
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+    if (view_toolbar.get_items_count() > 0)
+        // already initialized
+        return true;
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+
     BackgroundTexture::Metadata background_data;
     background_data.filename = "toolbar_background.png";
     background_data.left = 16;
@@ -3843,7 +3913,11 @@ void Plater::priv::init_view_toolbar()
     background_data.bottom = 16;
 
     if (!view_toolbar.init(background_data))
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+        return false;
+#else
         return;
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
     view_toolbar.set_horizontal_orientation(GLToolbar::Layout::HO_Left);
     view_toolbar.set_vertical_orientation(GLToolbar::Layout::VO_Bottom);
@@ -3858,7 +3932,11 @@ void Plater::priv::init_view_toolbar()
     item.sprite_id = 0;
     item.left.action_callback = [this]() { if (this->q != nullptr) wxPostEvent(this->q, SimpleEvent(EVT_GLVIEWTOOLBAR_3D)); };
     if (!view_toolbar.add_item(item))
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+        return false;
+#else
         return;
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
     item.name = "Preview";
     item.icon_filename = "preview.svg";
@@ -3866,10 +3944,18 @@ void Plater::priv::init_view_toolbar()
     item.sprite_id = 1;
     item.left.action_callback = [this]() { if (this->q != nullptr) wxPostEvent(this->q, SimpleEvent(EVT_GLVIEWTOOLBAR_PREVIEW)); };
     if (!view_toolbar.add_item(item))
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+        return false;
+#else
         return;
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
     view_toolbar.select_item("3D");
     view_toolbar.set_enabled(true);
+
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+    return true;
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 }
 
 bool Plater::priv::can_set_instance_to_object() const
@@ -3930,7 +4016,11 @@ bool Plater::priv::can_reload_from_disk() const
     for (const SelectedVolume& v : selected_volumes)
     {
         const ModelVolume* volume = model.objects[v.object_idx]->volumes[v.volume_idx];
+#if ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION
+        if (!volume->source.input_file.empty())
+#else
         if (!volume->source.input_file.empty() && boost::filesystem::exists(volume->source.input_file))
+#endif // ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION
             paths.push_back(volume->source.input_file);
     }
     std::sort(paths.begin(), paths.end());
@@ -5241,6 +5331,13 @@ void Plater::msw_rescale()
     Layout();
     GetParent()->Layout();
 }
+
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+bool Plater::init_view_toolbar()
+{
+    return p->init_view_toolbar();
+}
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
 const Camera& Plater::get_camera() const
 {

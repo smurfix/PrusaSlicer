@@ -631,7 +631,7 @@ std::vector<GCode::LayerToPrint> GCode::collect_layers_to_print(const PrintObjec
 
             if (layer_to_print.print_z() > maximal_print_z + 2. * EPSILON)
                 throw std::runtime_error(_(L("Empty layers detected, the output would not be printable.")) + "\n\n" +
-                    _(L("Object name: ")) + object.model_object()->name + "\n" + _(L("Print z: ")) +
+                    _(L("Object name")) + ": " + object.model_object()->name + "\n" + _(L("Print z")) + ": " +
                     std::to_string(layers_to_print.back().print_z()) + "\n\n" + _(L("This is "
                     "usually caused by negligibly small extrusions or by a faulty model. Try to repair "
                     " the model or change its orientation on the bed.")));
@@ -803,6 +803,7 @@ void GCode::_do_export(Print& print, FILE* file)
     // resets time estimators
     m_normal_time_estimator.reset();
     m_normal_time_estimator.set_dialect(print.config().gcode_flavor);
+    m_normal_time_estimator.set_extrusion_axis(print.config().get_extrusion_axis()[0]);
     m_silent_time_estimator_enabled = (print.config().gcode_flavor == gcfMarlin) && print.config().silent_mode;
 
     // Until we have a UI support for the other firmwares than the Marlin, use the hardcoded default values
@@ -832,6 +833,7 @@ void GCode::_do_export(Print& print, FILE* file)
         {
             m_silent_time_estimator.reset();
             m_silent_time_estimator.set_dialect(print.config().gcode_flavor);
+            m_silent_time_estimator.set_extrusion_axis(print.config().get_extrusion_axis()[0]);
             /* "Stealth mode" values can be just a copy of "normal mode" values
             * (when they aren't input for a printer preset).
             * Thus, use back value from values, instead of second one, which could be absent
@@ -880,6 +882,9 @@ void GCode::_do_export(Print& print, FILE* file)
             extruder_offsets[extruder_id] = offset;
     }
     m_analyzer.set_extruder_offsets(extruder_offsets);
+
+    // tell analyzer about the extrusion axis
+    m_analyzer.set_extrusion_axis(print.config().get_extrusion_axis()[0]);
 
     // send extruders count to analyzer to allow it to detect invalid extruder idxs
     const ConfigOptionStrings* extruders_opt = dynamic_cast<const ConfigOptionStrings*>(print.config().option("extruder_colour"));

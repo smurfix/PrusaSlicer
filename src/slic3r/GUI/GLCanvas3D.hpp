@@ -83,7 +83,9 @@ template <size_t N> using Vec3dsEvent = ArrayEvent<Vec3d, N>;
 
 using HeightProfileSmoothEvent = Event<HeightProfileSmoothingParams>;
 
+#if !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 wxDECLARE_EVENT(EVT_GLCANVAS_INIT, SimpleEvent);
+#endif // !ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 wxDECLARE_EVENT(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_RIGHT_CLICK, RBtnEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_REMOVE_OBJECT, SimpleEvent);
@@ -417,7 +419,6 @@ private:
     std::unique_ptr<RetinaHelper> m_retina_helper;
 #endif
     bool m_in_render;
-    bool m_render_enabled;
     LegendTexture m_legend_texture;
     WarningTexture m_warning_texture;
     wxTimer m_timer;
@@ -476,7 +477,7 @@ private:
     RenderStats m_render_stats;
 #endif // ENABLE_RENDER_STATISTICS
 
-    int m_imgui_undo_redo_hovered_pos{ -1 };
+    mutable int m_imgui_undo_redo_hovered_pos{ -1 };
     int m_selected_extruder;
 
 public:
@@ -555,9 +556,6 @@ public:
     void enable_dynamic_background(bool enable);
     void allow_multisample(bool allow);
 
-    void enable_render(bool enable) { m_render_enabled = enable; }
-    bool is_render_enabled() const { return m_render_enabled; }
-
     void zoom_to_bed();
     void zoom_to_volumes();
     void zoom_to_selection();
@@ -571,7 +569,7 @@ public:
 #if ENABLE_THUMBNAIL_GENERATOR
     // printable_only == false -> render also non printable volumes as grayed
     // parts_only == false -> render also sla support and pad
-    void render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background);
+    void render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const;
 #endif // ENABLE_THUMBNAIL_GENERATOR
 
     void select_all();
@@ -685,6 +683,9 @@ private:
     bool _init_toolbars();
     bool _init_main_toolbar();
     bool _init_undoredo_toolbar();
+#if ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
+    bool _init_view_toolbar();
+#endif // ENABLE_VIEW_TOOLBAR_BACKGROUND_FIX
 
     bool _set_current();
     void _resize(unsigned int w, unsigned int h);
@@ -723,15 +724,15 @@ private:
 #endif // ENABLE_SHOW_CAMERA_TARGET
     void _render_sla_slices() const;
     void _render_selection_sidebar_hints() const;
-    void _render_undo_redo_stack(const bool is_undo, float pos_x);
+    void _render_undo_redo_stack(const bool is_undo, float pos_x) const;
 #if ENABLE_THUMBNAIL_GENERATOR
-    void _render_thumbnail_internal(ThumbnailData& thumbnail_data, bool printable_only, bool parts_only, bool show_bed, bool transparent_background);
+    void _render_thumbnail_internal(ThumbnailData& thumbnail_data, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const;
     // render thumbnail using an off-screen framebuffer
-    void _render_thumbnail_framebuffer(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background);
+    void _render_thumbnail_framebuffer(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const;
     // render thumbnail using an off-screen framebuffer when GLEW_EXT_framebuffer_object is supported
-    void _render_thumbnail_framebuffer_ext(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background);
+    void _render_thumbnail_framebuffer_ext(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const;
     // render thumbnail using the default framebuffer
-    void _render_thumbnail_legacy(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background);
+    void _render_thumbnail_legacy(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const;
 #endif // ENABLE_THUMBNAIL_GENERATOR
 
     void _update_volumes_hover_state() const;
