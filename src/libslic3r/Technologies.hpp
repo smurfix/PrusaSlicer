@@ -26,8 +26,6 @@
 
 // Disable synchronization of unselected instances
 #define DISABLE_INSTANCES_SYNCH (0 && ENABLE_1_42_0_ALPHA1)
-// Disable imgui dialog for move, rotate and scale gizmos
-#define DISABLE_MOVE_ROTATE_SCALE_GIZMOS_IMGUI (1 && ENABLE_1_42_0_ALPHA1)
 // Use wxDataViewRender instead of wxDataViewCustomRenderer
 #define ENABLE_NONCUSTOM_DATA_VIEW_RENDERING (0 && ENABLE_1_42_0_ALPHA1)
 
@@ -54,5 +52,8 @@
 
 // Enable selection for missing files in reload from disk command
 #define ENABLE_RELOAD_FROM_DISK_MISSING_SELECTION (1 && ENABLE_2_2_0_ALPHA1)
+
+// Enable closing 3Dconnextion imgui settings dialog by clicking on [X] and [Close] buttons
+#define ENABLE_3DCONNEXION_DEVICES_CLOSE_SETTING_DIALOG (1 && ENABLE_2_2_0_ALPHA1)
 
 #endif // _technologies_h_

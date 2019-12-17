@@ -133,7 +133,7 @@ GLCanvas3D::LayersEditing::LayersEditing()
     , m_slicing_parameters(nullptr)
     , m_layer_height_profile_modified(false)
 #if ENABLE_ADAPTIVE_LAYER_HEIGHT_PROFILE
-    , m_adaptive_cusp(0.2f)
+    , m_adaptive_quality(0.5f)
 #endif // ENABLE_ADAPTIVE_LAYER_HEIGHT_PROFILE
     , state(Unknown)
     , band_width(2.0f)
@@ -225,7 +225,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas) const
         return;
 
 #if ENABLE_ADAPTIVE_LAYER_HEIGHT_PROFILE
-    static const ImVec4 orange(0.757f, 0.404f, 0.216f, 1.0f);
+    static const ImVec4 ORANGE(1.0f, 0.49f, 0.22f, 1.0f);
 
     const Size& cnv_size = canvas.get_canvas_size();
     float canvas_w = (float)cnv_size.get_width();
@@ -233,37 +233,34 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas) const
 
     ImGuiWrapper& imgui = *wxGetApp().imgui();
     imgui.set_next_window_pos(canvas_w - imgui.get_style_scaling() * THICKNESS_BAR_WIDTH, canvas_h, ImGuiCond_Always, 1.0f, 1.0f);
-    imgui.set_next_window_bg_alpha(0.5f);
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 
     imgui.begin(_(L("Variable layer height")), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
 
-    ImGui::PushStyleColor(ImGuiCol_Text, orange);
+    ImGui::PushStyleColor(ImGuiCol_Text, ORANGE);
     imgui.text(_(L("Left mouse button:")));
     ImGui::PopStyleColor();
     ImGui::SameLine();
     imgui.text(_(L("Add detail")));
 
-    ImGui::PushStyleColor(ImGuiCol_Text, orange);
+    ImGui::PushStyleColor(ImGuiCol_Text, ORANGE);
     imgui.text(_(L("Right mouse button:")));
     ImGui::PopStyleColor();
     ImGui::SameLine();
     imgui.text(_(L("Remove detail")));
 
-    ImGui::PushStyleColor(ImGuiCol_Text, orange);
+    ImGui::PushStyleColor(ImGuiCol_Text, ORANGE);
     imgui.text(_(L("Shift + Left mouse button:")));
     ImGui::PopStyleColor();
     ImGui::SameLine();
     imgui.text(_(L("Reset to base")));
 
-    ImGui::PushStyleColor(ImGuiCol_Text, orange);
+    ImGui::PushStyleColor(ImGuiCol_Text, ORANGE);
     imgui.text(_(L("Shift + Right mouse button:")));
     ImGui::PopStyleColor();
     ImGui::SameLine();
     imgui.text(_(L("Smoothing")));
 
-    ImGui::PushStyleColor(ImGuiCol_Text, orange);
+    ImGui::PushStyleColor(ImGuiCol_Text, ORANGE);
     imgui.text(_(L("Mouse wheel:")));
     ImGui::PopStyleColor();
     ImGui::SameLine();
@@ -271,16 +268,24 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas) const
     
     ImGui::Separator();
     if (imgui.button(_(L("Adaptive"))))
-        wxPostEvent((wxEvtHandler*)canvas.get_wxglcanvas(), Event<float>(EVT_GLCANVAS_ADAPTIVE_LAYER_HEIGHT_PROFILE, m_adaptive_cusp));
+        wxPostEvent((wxEvtHandler*)canvas.get_wxglcanvas(), Event<float>(EVT_GLCANVAS_ADAPTIVE_LAYER_HEIGHT_PROFILE, m_adaptive_quality));
 
     ImGui::SameLine();
     float text_align = ImGui::GetCursorPosX();
-    imgui.text(_(L("Cusp (mm)")));
+    ImGui::AlignTextToFramePadding();
+    imgui.text(_(L("Quality / Speed")));
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(_(L("Higher print quality versus higher print speed.")));
+        ImGui::EndTooltip();
+    }
+
     ImGui::SameLine();
     float widget_align = ImGui::GetCursorPosX();
     ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
-    m_adaptive_cusp = clamp((float)m_slicing_parameters->min_layer_height, (float)m_slicing_parameters->max_layer_height, m_adaptive_cusp);
-    ImGui::SliderFloat("", &m_adaptive_cusp, (float)m_slicing_parameters->min_layer_height, (float)m_slicing_parameters->max_layer_height, "%.2f");
+    m_adaptive_quality = clamp(0.0f, 1.f, m_adaptive_quality);
+    ImGui::SliderFloat("", &m_adaptive_quality, 0.0f, 1.f, "%.2f");
 
     ImGui::Separator();
     if (imgui.button(_(L("Smooth"))))
@@ -288,6 +293,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas) const
 
     ImGui::SameLine();
     ImGui::SetCursorPosX(text_align);
+    ImGui::AlignTextToFramePadding();
     imgui.text(_(L("Radius")));
     ImGui::SameLine();
     ImGui::SetCursorPosX(widget_align);
@@ -297,10 +303,12 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas) const
         m_smooth_params.radius = (unsigned int)radius;
 
     ImGui::SetCursorPosX(text_align);
+    ImGui::AlignTextToFramePadding();
     imgui.text(_(L("Keep min")));
     ImGui::SameLine();
     if (ImGui::GetCursorPosX() < widget_align)  // because of line lenght after localization
         ImGui::SetCursorPosX(widget_align);
+
     ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
     imgui.checkbox("##2", m_smooth_params.keep_min);
 
@@ -309,8 +317,6 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas) const
         wxPostEvent((wxEvtHandler*)canvas.get_wxglcanvas(), SimpleEvent(EVT_GLCANVAS_RESET_LAYER_HEIGHT_PROFILE));
 
     imgui.end();
-
-    ImGui::PopStyleVar();
 
     const Rect& bar_rect = get_bar_rect_viewport(canvas);
 #else
@@ -639,10 +645,10 @@ void GLCanvas3D::LayersEditing::reset_layer_height_profile(GLCanvas3D& canvas)
 }
 
 #if ENABLE_ADAPTIVE_LAYER_HEIGHT_PROFILE
-void GLCanvas3D::LayersEditing::adaptive_layer_height_profile(GLCanvas3D& canvas, float cusp)
+void GLCanvas3D::LayersEditing::adaptive_layer_height_profile(GLCanvas3D& canvas, float quality_factor)
 {
     this->update_slicing_parameters();
-    m_layer_height_profile = layer_height_profile_adaptive(*m_slicing_parameters, *m_model_object, cusp);
+    m_layer_height_profile = layer_height_profile_adaptive(*m_slicing_parameters, *m_model_object, quality_factor);
     const_cast<ModelObject*>(m_model_object)->layer_height_profile = m_layer_height_profile;
     m_layers_texture.valid = false;
     canvas.post_event(SimpleEvent(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS));
@@ -651,7 +657,6 @@ void GLCanvas3D::LayersEditing::adaptive_layer_height_profile(GLCanvas3D& canvas
 void GLCanvas3D::LayersEditing::smooth_layer_height_profile(GLCanvas3D& canvas, const HeightProfileSmoothingParams& smoothing_params)
 {
     this->update_slicing_parameters();
-
     m_layer_height_profile = smooth_height_profile(m_layer_height_profile, *m_slicing_parameters, smoothing_params);
     const_cast<ModelObject*>(m_model_object)->layer_height_profile = m_layer_height_profile;
     m_layers_texture.valid = false;
@@ -1388,7 +1393,7 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas* canvas, Bed3D& bed, Camera& camera, GLToolbar
     , m_gizmos(*this)
     , m_use_clipping_planes(false)
     , m_sidebar_field("")
-    , m_keep_dirty(false)
+    , m_extra_frame_requested(false)
     , m_config(nullptr)
     , m_process(nullptr)
     , m_model(nullptr)
@@ -1626,8 +1631,6 @@ void GLCanvas3D::bed_shape_changed()
     refresh_camera_scene_box();
     m_camera.requires_zoom_to_bed = true;
     m_dirty = true;
-    if (m_bed.is_prusa())
-        start_keeping_dirty();
 }
 
 void GLCanvas3D::set_color_by(const std::string& value)
@@ -1680,10 +1683,10 @@ void GLCanvas3D::reset_layer_height_profile()
     m_dirty = true;
 }
 
-void GLCanvas3D::adaptive_layer_height_profile(float cusp)
+void GLCanvas3D::adaptive_layer_height_profile(float quality_factor)
 {
     wxGetApp().plater()->take_snapshot(_(L("Variable layer height - Adaptive")));
-    m_layers_editing.adaptive_layer_height_profile(*this, cusp);
+    m_layers_editing.adaptive_layer_height_profile(*this, quality_factor);
     m_layers_editing.state = LayersEditing::Completed;
     m_dirty = true;
 }
@@ -1897,7 +1900,6 @@ void GLCanvas3D::render()
 
 #if ENABLE_RENDER_STATISTICS
     ImGuiWrapper& imgui = *wxGetApp().imgui();
-    imgui.set_next_window_bg_alpha(0.5f);
     imgui.begin(std::string("Render statistics"), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
     imgui.text("Last frame: ");
     ImGui::SameLine();
@@ -1918,7 +1920,11 @@ void GLCanvas3D::render()
     m_camera.debug_render();
 #endif // ENABLE_CAMERA_STATISTICS
 
+#if ENABLE_3DCONNEXION_DEVICES_CLOSE_SETTING_DIALOG
+    wxGetApp().plater()->get_mouse3d_controller().render_settings_dialog(*this);
+#else
     wxGetApp().plater()->get_mouse3d_controller().render_settings_dialog((unsigned int)cnv_size.get_width(), (unsigned int)cnv_size.get_height());
+#endif // ENABLE_3DCONNEXION_DEVICES_CLOSE_SETTING_DIALOG
 
     wxGetApp().imgui()->render();
 
@@ -2623,9 +2629,10 @@ void GLCanvas3D::on_idle(wxIdleEvent& evt)
 
     _refresh_if_shown_on_screen();
 
-    if (m_keep_dirty || mouse3d_controller_applied)
+    if (m_extra_frame_requested || mouse3d_controller_applied)
     {
         m_dirty = true;
+        m_extra_frame_requested = false;
         evt.RequestMore();
     }
     else
@@ -3837,8 +3844,7 @@ void GLCanvas3D::_render_undo_redo_stack(const bool is_undo, float pos_x) const
 
     const float x = pos_x * (float)get_camera().get_zoom() + 0.5f * (float)get_canvas_size().get_width();
     imgui->set_next_window_pos(x, m_undoredo_toolbar.get_height(), ImGuiCond_Always, 0.5f, 0.0f);
-    imgui->set_next_window_bg_alpha(0.5f);
-	std::string title = is_undo ? L("Undo History") : L("Redo History");
+    std::string title = is_undo ? L("Undo History") : L("Redo History");
     imgui->begin(_(title), ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     int hovered = m_imgui_undo_redo_hovered_pos;
