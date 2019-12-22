@@ -77,6 +77,7 @@
 #include "../Utils/FixModelByWin10.hpp"
 #include "../Utils/UndoRedo.hpp"
 #include "../Utils/Thread.hpp"
+#include "RemovableDriveManager.hpp"
 
 #include <wx/glcanvas.h>    // Needs to be last because reasons :-/
 #include "WipeTowerDialog.hpp"
@@ -698,7 +699,8 @@ struct Sidebar::priv
 
     wxButton *btn_export_gcode;
     wxButton *btn_reslice;
-    wxButton *btn_send_gcode;
+    ScalableButton *btn_send_gcode;
+    ScalableButton *btn_remove_device;
 
     priv(Plater *plater) : plater(plater) {}
     ~priv();
@@ -847,22 +849,47 @@ Sidebar::Sidebar(Plater *parent)
 
     // Buttons underneath the scrolled area
 
-    auto init_btn = [this](wxButton **btn, wxString label) {
+    // rescalable bitmap buttons "Send to printer" and "Remove device" 
+
+    auto init_scalable_btn = [this](ScalableButton** btn, const std::string& icon_name, wxString tooltip = wxEmptyString)
+    {
+#ifdef __APPLE__
+        int bmp_px_cnt = 16;
+#else
+        int bmp_px_cnt = 32;
+#endif //__APPLE__
+        ScalableBitmap bmp = ScalableBitmap(this, icon_name, bmp_px_cnt);
+        *btn = new ScalableButton(this, wxID_ANY, bmp, "", wxBU_EXACTFIT);
+        (*btn)->SetToolTip(tooltip);
+        (*btn)->Hide();
+    };
+
+    init_scalable_btn(&p->btn_send_gcode   , "export_gcode", _(L("Send to printer")));
+    init_scalable_btn(&p->btn_remove_device, "cross"       , _(L("Remove device")));
+
+    // regular buttons "Slice now" and "Export G-code" 
+
+    const int scaled_height = p->btn_remove_device->GetBitmapHeight() + 4;
+    auto init_btn = [this](wxButton **btn, wxString label, const int button_height) {
         *btn = new wxButton(this, wxID_ANY, label, wxDefaultPosition,
-                            wxDefaultSize, wxBU_EXACTFIT);
+                            wxSize(-1, button_height), wxBU_EXACTFIT);
         (*btn)->SetFont(wxGetApp().bold_font());
     };
 
-    init_btn(&p->btn_send_gcode,   _(L("Send to printer")));
-    p->btn_send_gcode->Hide();
-    init_btn(&p->btn_export_gcode, _(L("Export G-code")) + dots);
-    init_btn(&p->btn_reslice,      _(L("Slice now")));
+    init_btn(&p->btn_export_gcode, _(L("Export G-code")) + dots , scaled_height);
+    init_btn(&p->btn_reslice     , _(L("Slice now"))            , scaled_height);
+
     enable_buttons(false);
 
     auto *btns_sizer = new wxBoxSizer(wxVERTICAL);
+
+    auto* complect_btns_sizer = new wxBoxSizer(wxHORIZONTAL);
+    complect_btns_sizer->Add(p->btn_export_gcode, 1, wxEXPAND);
+    complect_btns_sizer->Add(p->btn_send_gcode);
+    complect_btns_sizer->Add(p->btn_remove_device);
+
     btns_sizer->Add(p->btn_reslice, 0, wxEXPAND | wxTOP, margin_5);
-    btns_sizer->Add(p->btn_send_gcode, 0, wxEXPAND | wxTOP, margin_5);
-    btns_sizer->Add(p->btn_export_gcode, 0, wxEXPAND | wxTOP, margin_5);
+    btns_sizer->Add(complect_btns_sizer, 0, wxEXPAND | wxTOP, margin_5);
 
     auto *sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(p->scrolled, 1, wxEXPAND);
@@ -881,6 +908,7 @@ Sidebar::Sidebar(Plater *parent)
         p->plater->select_view_3D("Preview");
     });
     p->btn_send_gcode->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { p->plater->send_gcode(); });
+    p->btn_remove_device->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { p->plater->eject_drive(); });
 }
 
 Sidebar::~Sidebar() {}
@@ -1025,6 +1053,12 @@ void Sidebar::msw_rescale()
     p->object_layers->msw_rescale();
 
     p->object_info->msw_rescale();
+
+    p->btn_send_gcode->msw_rescale();
+    p->btn_remove_device->msw_rescale();
+    const int scaled_height = p->btn_remove_device->GetBitmap().GetHeight() + 4;
+    p->btn_export_gcode->SetMinSize(wxSize(-1, scaled_height));
+    p->btn_reslice     ->SetMinSize(wxSize(-1, scaled_height));
 
     p->scrolled->Layout();
 }
@@ -1254,11 +1288,13 @@ void Sidebar::enable_buttons(bool enable)
     p->btn_reslice->Enable(enable);
     p->btn_export_gcode->Enable(enable);
     p->btn_send_gcode->Enable(enable);
+    p->btn_remove_device->Enable(enable);
 }
 
 bool Sidebar::show_reslice(bool show)   const { return p->btn_reslice->Show(show); }
 bool Sidebar::show_export(bool show)    const { return p->btn_export_gcode->Show(show); }
 bool Sidebar::show_send(bool show)      const { return p->btn_send_gcode->Show(show); }
+bool Sidebar::show_disconnect(bool show)const { return p->btn_remove_device->Show(show); }
 
 bool Sidebar::is_multifilament()
 {
@@ -2334,7 +2370,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                         config += std::move(config_loaded);
                     }
 
-                    this->model.custom_gcode_per_height = model.custom_gcode_per_height;
+                    this->model.custom_gcode_per_print_z = model.custom_gcode_per_print_z;
                 }
 
                 if (load_config)
@@ -2753,7 +2789,7 @@ void Plater::priv::reset()
     // The hiding of the slicing results, if shown, is not taken care by the background process, so we do it here
     this->sidebar->show_sliced_info_sizer(false);
 
-    model.custom_gcode_per_height.clear();
+    model.custom_gcode_per_print_z.clear();
 }
 
 void Plater::priv::mirror(Axis axis)
@@ -3154,6 +3190,7 @@ void Plater::priv::update_fff_scene()
         this->preview->reload_print();
     // In case this was MM print, wipe tower bounding box on 3D tab might need redrawing with exact depth:
     view3D->reload_scene(true);
+	
 }
 
 void Plater::priv::update_sla_scene()
@@ -3233,14 +3270,20 @@ void Plater::priv::reload_from_disk()
     while (!missing_input_paths.empty())
     {
         // ask user to select the missing file
-        std::string search = missing_input_paths.back().string();
-        wxFileDialog dialog(q, _(L("Please select the file to reload:")), "", from_u8(fs::path(search).filename().string()), file_wildcards(FT_MODEL), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+        fs::path search = missing_input_paths.back();
+        wxString title = _(L("Please select the file to reload"));
+#if defined(__APPLE__)
+        title += " (" + from_u8(search.filename().string()) + "):";
+#else
+        title += ":";
+#endif // __APPLE__
+        wxFileDialog dialog(q, title, "", from_u8(search.filename().string()), file_wildcards(FT_MODEL), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
         if (dialog.ShowModal() != wxID_OK)
             return;
 
         std::string sel_filename_path = dialog.GetPath().ToUTF8().data();
         std::string sel_filename = fs::path(sel_filename_path).filename().string();
-        if (boost::algorithm::iends_with(search, sel_filename))
+        if (boost::algorithm::iequals(search.filename().string(), sel_filename))
         {
             input_paths.push_back(sel_filename_path);
             missing_input_paths.pop_back();
@@ -3264,7 +3307,7 @@ void Plater::priv::reload_from_disk()
         }
         else
         {
-            wxString message = _(L("It is not allowed to change the file to reload")) + " (" + from_u8(fs::path(search).filename().string())+ ").\n" + _(L("Do you want to retry")) + " ?";
+            wxString message = _(L("It is not allowed to change the file to reload")) + " (" + from_u8(search.filename().string()) + ").\n" + _(L("Do you want to retry")) + " ?";
             wxMessageDialog dlg(q, message, wxMessageBoxCaptionStr, wxYES_NO | wxYES_DEFAULT | wxICON_QUESTION);
             if (dlg.ShowModal() != wxID_YES)
                 return;
@@ -3303,7 +3346,8 @@ void Plater::priv::reload_from_disk()
             int new_volume_idx = old_volume->source.volume_idx;
             int new_object_idx = old_volume->source.object_idx;
 
-            if (old_volume->source.input_file == path)
+            if (boost::algorithm::iequals(fs::path(old_volume->source.input_file).filename().string(),
+                fs::path(path).filename().string()))
             {
                 assert(new_object_idx < (int)new_model.objects.size());
                 ModelObject* new_model_object = new_model.objects[new_object_idx];
@@ -3315,16 +3359,26 @@ void Plater::priv::reload_from_disk()
                     new_volume->config.apply(old_volume->config);
                     new_volume->set_type(old_volume->type());
                     new_volume->set_material_id(old_volume->material_id());
+#if ENABLE_KEEP_LOADED_VOLUME_TRANSFORM_AS_STAND_ALONE
+                    new_volume->set_transformation(old_volume->get_transformation() * old_volume->source.transform);
+#else
                     new_volume->set_transformation(old_volume->get_transformation());
+#endif // ENABLE_KEEP_LOADED_VOLUME_TRANSFORM_AS_STAND_ALONE
                     new_volume->translate(new_volume->get_transformation().get_matrix(true) * (new_volume->source.mesh_offset - old_volume->source.mesh_offset));
+                    new_volume->source.input_file = path;
                     std::swap(old_model_object->volumes[old_v.volume_idx], old_model_object->volumes.back());
                     old_model_object->delete_volume(old_model_object->volumes.size() - 1);
+#if ENABLE_KEEP_LOADED_VOLUME_TRANSFORM_AS_STAND_ALONE
+                    old_model_object->ensure_on_bed();
+#endif // ENABLE_KEEP_LOADED_VOLUME_TRANSFORM_AS_STAND_ALONE
                 }
             }
         }
     }
 
+#if !ENABLE_KEEP_LOADED_VOLUME_TRANSFORM_AS_STAND_ALONE
     model.adjust_min_z();
+#endif // !ENABLE_KEEP_LOADED_VOLUME_TRANSFORM_AS_STAND_ALONE
 
     // update 3D scene
     update();
@@ -3559,6 +3613,7 @@ void Plater::priv::on_process_completed(wxCommandEvent &evt)
         break;
     default: break;
     }
+	
 
     if (canceled) {
         if (wxGetApp().get_mode() == comSimple)
@@ -3567,6 +3622,16 @@ void Plater::priv::on_process_completed(wxCommandEvent &evt)
     }
     else if (wxGetApp().get_mode() == comSimple)
         show_action_buttons(false);
+
+	if(!canceled && RemovableDriveManager::get_instance().get_is_writing())
+	{	
+		//if (!RemovableDriveManager::get_instance().is_last_drive_removed())
+		//{
+			RemovableDriveManager::get_instance().set_is_writing(false);
+			show_action_buttons(false);
+		//}
+		
+	}
 }
 
 void Plater::priv::on_layer_editing_toggled(bool enable)
@@ -3615,7 +3680,10 @@ void Plater::priv::on_right_click(RBtnEvent& evt)
         if (evt.data.second) // right button was clicked on empty space
             menu = &default_menu;
         else
+        {
+            sidebar->obj_list()->show_multi_selection_menu();
             return;
+        }
     }
     else
     {
@@ -4132,20 +4200,23 @@ void Plater::priv::show_action_buttons(const bool is_ready_to_slice) const
     wxWindowUpdateLocker noUpdater(sidebar);
     const auto prin_host_opt = config->option<ConfigOptionString>("print_host");
     const bool send_gcode_shown = prin_host_opt != nullptr && !prin_host_opt->value.empty();
-
+    
+    bool disconnect_shown = !RemovableDriveManager::get_instance().is_last_drive_removed() ; // #dk_FIXME
     // when a background processing is ON, export_btn and/or send_btn are showing
     if (wxGetApp().app_config->get("background_processing") == "1")
     {
         if (sidebar->show_reslice(false) |
             sidebar->show_export(true) |
-            sidebar->show_send(send_gcode_shown))
+            sidebar->show_send(send_gcode_shown) |
+            sidebar->show_disconnect(disconnect_shown))
             sidebar->Layout();
     }
     else
     {
         if (sidebar->show_reslice(is_ready_to_slice) |
             sidebar->show_export(!is_ready_to_slice) |
-            sidebar->show_send(send_gcode_shown && !is_ready_to_slice))
+            sidebar->show_send(send_gcode_shown && !is_ready_to_slice) |
+            sidebar->show_disconnect(disconnect_shown && !is_ready_to_slice))
             sidebar->Layout();
     }
 }
@@ -4386,7 +4457,7 @@ void Sidebar::set_btn_label(const ActionButtonType btn_type, const wxString& lab
     {
         case ActionButtonType::abReslice:   p->btn_reslice->SetLabelText(label);        break;
         case ActionButtonType::abExport:    p->btn_export_gcode->SetLabelText(label);   break;
-        case ActionButtonType::abSendGCode: p->btn_send_gcode->SetLabelText(label);     break;
+        case ActionButtonType::abSendGCode: /*p->btn_send_gcode->SetLabelText(label);*/     break;
     }
 }
 
@@ -4645,6 +4716,13 @@ void Plater::cut(size_t obj_idx, size_t instance_idx, coordf_t z, bool keep_uppe
 
     remove(obj_idx);
     p->load_model_objects(new_objects);
+
+    Selection& selection = p->get_selection();
+    size_t last_id = p->model.objects.size() - 1;
+    for (size_t i = 0; i < new_objects.size(); ++i)
+    {
+        selection.add_object((unsigned int)(last_id - i), i == 0);
+    }
 }
 
 void Plater::export_gcode()
@@ -4669,7 +4747,13 @@ void Plater::export_gcode()
     }
     default_output_file = fs::path(Slic3r::fold_utf8_to_ascii(default_output_file.string()));
     auto start_dir = wxGetApp().app_config->get_last_output_dir(default_output_file.parent_path().string());
-
+	if (GUI::RemovableDriveManager::get_instance().update())
+	{
+		if (!RemovableDriveManager::get_instance().is_path_on_removable_drive(start_dir))
+		{
+			start_dir = RemovableDriveManager::get_instance().get_drive_path();
+		}
+	}
     wxFileDialog dlg(this, (printer_technology() == ptFFF) ? _(L("Save G-code file as:")) : _(L("Save SL1 file as:")),
         start_dir,
         from_path(default_output_file.filename()),
@@ -4684,7 +4768,22 @@ void Plater::export_gcode()
         output_path = std::move(path);
     }
     if (! output_path.empty())
+	{
+		std::string path = output_path.string();
         p->export_gcode(std::move(output_path), PrintHostJob());
+
+		RemovableDriveManager::get_instance().update(0, false);
+		RemovableDriveManager::get_instance().set_last_save_path(path);
+		RemovableDriveManager::get_instance().verify_last_save_path();
+		
+		if(!RemovableDriveManager::get_instance().is_last_drive_removed())
+		{
+			RemovableDriveManager::get_instance().set_is_writing(true);
+			RemovableDriveManager::get_instance().erase_callbacks();
+			RemovableDriveManager::get_instance().add_callback(std::bind(&Plater::drive_ejected_callback, this));
+		}
+		
+	}
 }
 
 void Plater::export_stl(bool extended, bool selection_only)
@@ -4964,6 +5063,27 @@ void Plater::send_gcode()
     }
 }
 
+void Plater::eject_drive()
+{
+	RemovableDriveManager::get_instance().update(0, true);
+	//RemovableDriveManager::get_instance().erase_callbacks();
+	//RemovableDriveManager::get_instance().add_callback(std::bind(&Plater::drive_ejected_callback, this));
+	RemovableDriveManager::get_instance().eject_drive(RemovableDriveManager::get_instance().get_last_save_path());
+		
+}
+void Plater::drive_ejected_callback()
+{
+	if (RemovableDriveManager::get_instance().get_did_eject())
+	{
+        RemovableDriveManager::get_instance().set_did_eject(false);
+		wxString message = "Unmounting succesesful. The device " + RemovableDriveManager::get_instance().get_last_save_name() + "(" + RemovableDriveManager::get_instance().get_last_save_path() + ")" + " can now be safely removed from the computer.";
+		wxMessageBox(message);
+	}
+	p->show_action_buttons(false);
+}
+
+
+
 void Plater::take_snapshot(const std::string &snapshot_name) { p->take_snapshot(snapshot_name); }
 void Plater::take_snapshot(const wxString &snapshot_name) { p->take_snapshot(snapshot_name); }
 void Plater::suppress_snapshots() { p->suppress_snapshots(); }
@@ -5174,6 +5294,7 @@ const DynamicPrintConfig* Plater::get_plater_config() const
     return p->config;
 }
 
+// Get vector of extruder colors considering filament color, if extruder color is undefined.
 std::vector<std::string> Plater::get_extruder_colors_from_plater_config() const
 {
     const Slic3r::DynamicPrintConfig* config = &wxGetApp().preset_bundle->printers.get_edited_preset().config;
@@ -5193,13 +5314,17 @@ std::vector<std::string> Plater::get_extruder_colors_from_plater_config() const
     return extruder_colors;
 }
 
+/* Get vector of colors used for rendering of a Preview scene in "Color print" mode
+ * It consists of extruder colors and colors, saved in model.custom_gcode_per_print_z
+ */
 std::vector<std::string> Plater::get_colors_for_color_print() const
 {
     std::vector<std::string> colors = get_extruder_colors_from_plater_config();
+    colors.reserve(colors.size() + p->model.custom_gcode_per_print_z.size());
 
-    for (const Model::CustomGCode& code : p->model.custom_gcode_per_height)
+    for (const Model::CustomGCode& code : p->model.custom_gcode_per_print_z)
         if (code.gcode == ColorChangeCode)
-            colors.push_back(code.color);
+            colors.emplace_back(code.color);
 
     return colors;
 }

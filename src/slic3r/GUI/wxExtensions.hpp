@@ -17,6 +17,7 @@
 #include <set>
 #include <functional>
 #include "libslic3r/Model.hpp"
+#include "libslic3r/GCodeWriter.hpp"
 
 namespace Slic3r {
     enum class ModelVolumeType : int;
@@ -729,6 +730,9 @@ public:
     wxBitmap&           bmp()       { return m_bmp; }
     const std::string&  name() const{ return m_icon_name; }
 
+    int                 px_cnt()const           {return m_px_cnt;}
+    bool                is_horizontal()const    {return m_is_horizontal;}
+
 private:
     wxWindow*       m_parent{ nullptr };
     wxBitmap        m_bmp = wxBitmap();
@@ -958,24 +962,12 @@ private:
 
     struct TICK_CODE
     {
-        TICK_CODE(int tick):tick(tick), gcode(Slic3r::ColorChangeCode), extruder(0), color("") {}
-        TICK_CODE(int tick, const std::string& code) : 
-                            tick(tick), gcode(code), extruder(0) {}
-        TICK_CODE(int tick, int extruder) :
-                            tick(tick), gcode(Slic3r::ColorChangeCode), extruder(extruder) {}
-        TICK_CODE(int tick, const std::string& code, int extruder, const std::string& color) : 
-                            tick(tick), gcode(code), extruder(extruder), color(color) {}
-
         bool operator<(const TICK_CODE& other) const { return other.tick > this->tick; }
         bool operator>(const TICK_CODE& other) const { return other.tick < this->tick; }
-        TICK_CODE operator=(const TICK_CODE& other) const {
-            TICK_CODE ret_val(other.tick, other.gcode, other.extruder, other.color);
-            return ret_val;
-        }
 
-        int         tick;
-        std::string gcode;
-        int         extruder;
+        int         tick = 0;
+        std::string gcode = Slic3r::ColorChangeCode;
+        int         extruder = 0;
         std::string color;
     };
 
@@ -1107,6 +1099,7 @@ public:
 
     void SetBitmap_(const ScalableBitmap& bmp);
     void SetBitmapDisabled_(const ScalableBitmap &bmp);
+    int  GetBitmapHeight();
 
     void    msw_rescale();
 
@@ -1116,6 +1109,10 @@ private:
     std::string     m_disabled_icon_name = "";
     int             m_width {-1}; // should be multiplied to em_unit
     int             m_height{-1}; // should be multiplied to em_unit
+
+    // bitmap dimensions 
+    int             m_px_cnt{ 16 };
+    bool            m_is_horizontal{ false };
 };
 
 
