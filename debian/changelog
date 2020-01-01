@@ -1,3 +1,9 @@
+slic3r-prusa (2.2.0.smurf4-2) unstable; urgency=medium
+
+  * Merge
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Wed, 01 Jan 2020 17:11:04 +0100
+
 slic3r-prusa (2.2.0.smurf3-1) unstable; urgency=medium
 
   * Merge
