@@ -288,6 +288,18 @@ std::string PresetBundle::load_system_presets()
 		// No config bundle loaded, reset.
 		this->reset(false);
 	}
+
+    this->prints 	   .update_map_system_profile_renamed();
+    this->sla_prints   .update_map_system_profile_renamed();
+    this->filaments    .update_map_system_profile_renamed();
+    this->sla_materials.update_map_system_profile_renamed();
+    this->printers     .update_map_system_profile_renamed();
+
+    this->prints       .update_map_alias_to_profile_name();
+    this->sla_prints   .update_map_alias_to_profile_name();
+    this->filaments    .update_map_alias_to_profile_name();
+    this->sla_materials.update_map_alias_to_profile_name();
+
     return errors_cummulative;
 }
 
@@ -468,19 +480,12 @@ void PresetBundle::export_selections(AppConfig &config)
     config.set("presets", "printer",      printers.get_selected_preset_name());
 }
 
-void PresetBundle::load_compatible_bitmaps(wxWindow *window)
+void PresetBundle::load_compatible_bitmaps()
 {
-    // We don't actually pass the window pointer here and instead generate
-    // a low DPI bitmap, because the wxBitmapComboBox and wxDataViewCtrl don't support
-    // high DPI bitmaps very well, they compute their dimensions wrong.
-    // TODO: Update this when fixed in wxWidgets
-    // See also PresetCollection::load_bitmap_default() and PresetCollection::load_bitmap_add()
-
-    (void)window;
-    *m_bitmapCompatible     = create_scaled_bitmap(nullptr, "flag_green");
-    *m_bitmapIncompatible   = create_scaled_bitmap(nullptr, "flag_red");
-    *m_bitmapLock           = create_scaled_bitmap(nullptr, "lock_closed");
-    *m_bitmapLockOpen       = create_scaled_bitmap(nullptr, "lock_open");
+    *m_bitmapCompatible     = create_scaled_bitmap("flag_green");
+    *m_bitmapIncompatible   = create_scaled_bitmap("flag_red");
+    *m_bitmapLock           = create_scaled_bitmap("lock_closed");
+    *m_bitmapLockOpen       = create_scaled_bitmap("lock_open");
 
     prints       .set_bitmap_compatible(m_bitmapCompatible);
     filaments    .set_bitmap_compatible(m_bitmapCompatible);
@@ -555,9 +560,11 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
 		while (filament_configs.size() < num_extruders)
             filament_configs.emplace_back(&this->filaments.first_visible().config);
         for (const DynamicPrintConfig *cfg : filament_configs) {
-            compatible_printers_condition.emplace_back(Preset::compatible_printers_condition(*const_cast<DynamicPrintConfig*>(cfg)));
-            compatible_prints_condition  .emplace_back(Preset::compatible_prints_condition(*const_cast<DynamicPrintConfig*>(cfg)));
-            inherits                     .emplace_back(Preset::inherits(*const_cast<DynamicPrintConfig*>(cfg)));
+            // The compatible_prints/printers_condition() returns a reference to configuration key, which may not yet exist.
+            DynamicPrintConfig &cfg_rw = *const_cast<DynamicPrintConfig*>(cfg);
+            compatible_printers_condition.emplace_back(Preset::compatible_printers_condition(cfg_rw));
+            compatible_prints_condition  .emplace_back(Preset::compatible_prints_condition(cfg_rw));
+            inherits                     .emplace_back(Preset::inherits(cfg_rw));
         }
         // Option values to set a ConfigOptionVector from.
         std::vector<const ConfigOption*> filament_opts(num_extruders, nullptr);
@@ -1132,7 +1139,6 @@ size_t PresetBundle::load_configbundle(const std::string &path, unsigned int fla
         PresetCollection         *presets = nullptr;
         std::vector<std::string> *loaded  = nullptr;
         std::string               preset_name;
-        std::string               alias_name;
         if (boost::starts_with(section.first, "print:")) {
             presets = &this->prints;
             loaded  = &loaded_prints;
@@ -1141,12 +1147,6 @@ size_t PresetBundle::load_configbundle(const std::string &path, unsigned int fla
             presets = &this->filaments;
             loaded  = &loaded_filaments;
             preset_name = section.first.substr(9);
-
-            for (const auto& item : section.second)
-                if (boost::starts_with(item.first, "alias")) {
-                    alias_name = item.second.data();
-                    break;
-                }
         } else if (boost::starts_with(section.first, "sla_print:")) {
             presets = &this->sla_prints;
             loaded  = &loaded_sla_prints;
@@ -1155,9 +1155,6 @@ size_t PresetBundle::load_configbundle(const std::string &path, unsigned int fla
             presets = &this->sla_materials;
             loaded  = &loaded_sla_materials;
             preset_name = section.first.substr(13);
-
-            int end_pos = preset_name.find_first_of("0.");
-            alias_name = preset_name.substr(0, end_pos-1);
         } else if (boost::starts_with(section.first, "printer:")) {
             presets = &this->printers;
             loaded  = &loaded_printers;
@@ -1213,19 +1210,32 @@ size_t PresetBundle::load_configbundle(const std::string &path, unsigned int fla
             // Load the print, filament or printer preset.
             const DynamicPrintConfig *default_config = nullptr;
             DynamicPrintConfig        config;
+            std::string 			  alias_name;
+            std::vector<std::string>  renamed_from;
+            auto parse_config_section = [&section, &alias_name, &renamed_from, &path](DynamicPrintConfig &config) {
+                for (auto &kvp : section.second) {
+                	if (kvp.first == "alias")
+                		alias_name = kvp.second.data();
+                	else if (kvp.first == "renamed_from") {
+                		if (! unescape_strings_cstyle(kvp.second.data(), renamed_from)) {
+			                BOOST_LOG_TRIVIAL(error) << "Error in a Vendor Config Bundle \"" << path << "\": The preset \"" << 
+			                    section.first << "\" contains invalid \"renamed_from\" key, which is being ignored.";
+                   		}
+                	}
+                    config.set_deserialize(kvp.first, kvp.second.data());
+                }
+            };
             if (presets == &this->printers) {
                 // Select the default config based on the printer_technology field extracted from kvp.
                 DynamicPrintConfig config_src;
-                for (auto &kvp : section.second)
-                    config_src.set_deserialize(kvp.first, kvp.second.data());
+                parse_config_section(config_src);
                 default_config = &presets->default_preset_for(config_src).config;
                 config = *default_config;
                 config.apply(config_src);
             } else {
                 default_config = &presets->default_preset().config;
                 config = *default_config;
-                for (auto &kvp : section.second)
-                    config.set_deserialize(kvp.first, kvp.second.data());
+                parse_config_section(config);
             }
             Preset::normalize(config);
             // Report configuration fields, which are misplaced into a wrong group.
@@ -1304,12 +1314,22 @@ size_t PresetBundle::load_configbundle(const std::string &path, unsigned int fla
                 loaded.vendor = vendor_profile;
             }
 
-            // next step of an preset name aliasing
-            int end_pos = preset_name.find_first_of("@");
-            if (end_pos != std::string::npos)
-                alias_name = preset_name.substr(0, end_pos - 1);
-
-            loaded.alias = alias_name.empty() ? preset_name : alias_name;
+            // Derive the profile logical name aka alias from the preset name if the alias was not stated explicitely.
+            if (alias_name.empty()) {
+	            int end_pos = preset_name.find_first_of("@");
+	            if (end_pos != std::string::npos) {
+	                alias_name = preset_name.substr(0, end_pos);
+	                if (renamed_from.empty())
+	                	// Add the preset name with the '@' character removed into the "renamed_from" list.
+	                	renamed_from.emplace_back(alias_name + preset_name.substr(end_pos + 1));
+                    boost::trim_right(alias_name);
+	            }
+	        }
+	        if (alias_name.empty())
+	        	loaded.alias = preset_name;
+	        else 
+	         	loaded.alias = std::move(alias_name);
+	        loaded.renamed_from = std::move(renamed_from);
 
             ++ presets_loaded;
         }
@@ -1533,7 +1553,7 @@ bool PresetBundle::parse_color(const std::string &scolor, unsigned char *rgb_out
     return true;
 }
 
-void PresetBundle::load_default_preset_bitmaps(wxWindow *window)
+void PresetBundle::load_default_preset_bitmaps()
 {
     // Clear bitmap cache, before load new scaled default preset bitmaps 
     m_bitmapCache->clear();
@@ -1543,16 +1563,16 @@ void PresetBundle::load_default_preset_bitmaps(wxWindow *window)
     this->sla_materials.clear_bitmap_cache();
     this->printers.clear_bitmap_cache();
 
-    this->prints.load_bitmap_default(window, "cog");
-    this->sla_prints.load_bitmap_default(window, "cog");
-    this->filaments.load_bitmap_default(window, "spool.png");
-    this->sla_materials.load_bitmap_default(window, "resin");
-    this->printers.load_bitmap_default(window, "printer");
-    this->printers.load_bitmap_add(window, "add.png");
-    this->load_compatible_bitmaps(window);
+    this->prints.load_bitmap_default("cog");
+    this->sla_prints.load_bitmap_default("cog");
+    this->filaments.load_bitmap_default("spool.png");
+    this->sla_materials.load_bitmap_default("resin");
+    this->printers.load_bitmap_default("printer");
+    this->printers.load_bitmap_add("add.png");
+    this->load_compatible_bitmaps();
 }
 
-void PresetBundle::update_platter_filament_ui(unsigned int idx_extruder, GUI::PresetComboBox *ui)
+void PresetBundle::update_plater_filament_ui(unsigned int idx_extruder, GUI::PresetComboBox *ui)
 {
     if (ui == nullptr || this->printers.get_edited_preset().printer_technology() == ptSLA ||
         this->filament_presets.size() <= idx_extruder )
@@ -1596,7 +1616,12 @@ void PresetBundle::update_platter_filament_ui(unsigned int idx_extruder, GUI::Pr
 
     // To avoid asserts, each added bitmap to wxBitmapCombobox should be the same size, so
     // set a bitmap height to m_bitmapLock->GetHeight()
-    const int icon_height       = m_bitmapLock->GetHeight();//2 * icon_unit;    //16 * scale_f + 0.5f;
+    // Note, under OSX we should use a ScaledHeight because of Retina scale
+#ifdef __APPLE__
+    const int icon_height       = m_bitmapLock->GetScaledHeight();
+#else
+    const int icon_height       = m_bitmapLock->GetHeight();
+#endif
 
     wxString tooltip = "";
 

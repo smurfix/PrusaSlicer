@@ -449,7 +449,7 @@ int copy_file(const std::string &from, const std::string &to, const bool with_ch
             ret_val = check_copy(from, to_temp);
 
         if (ret_val == 0 && rename_file(to_temp, to))
-        	ret_val = -1;
+        	ret_val = -3;
 	}
 	return ret_val;
 }
@@ -460,11 +460,11 @@ int check_copy(const std::string &origin, const std::string &copy)
 	std::ifstream f2(copy, std::ifstream::in | std::ifstream::binary | std::ifstream::ate);
 
 	if (f1.fail() || f2.fail())
-		return -1;
+		return -2;
 
 	std::streampos fsize = f1.tellg();
 	if (fsize != f2.tellg())
-		return -1;
+		return -2;
 
 	f1.seekg(0, std::ifstream::beg);
 	f2.seekg(0, std::ifstream::beg);
@@ -481,12 +481,12 @@ int check_copy(const std::string &origin, const std::string &copy)
 		if (origin_cnt != copy_cnt ||
 			(origin_cnt > 0 && std::memcmp(buffer_origin.data(), buffer_copy.data(), origin_cnt) != 0))
 			// Files are different.
-			return -1;
+			return -2;
 		fsize -= origin_cnt;
     } while (f1.good() && f2.good());
 
     // All data has been read and compared equal.
-    return (f1.eof() && f2.eof() && fsize == 0) ? 0 : -1;
+    return (f1.eof() && f2.eof() && fsize == 0) ? 0 : -2;
 }
 
 // Ignore system and hidden files, which may be created by the DropBox synchronisation process.
@@ -535,7 +535,7 @@ std::string encode_path(const char *src)
     // Convert a wide string to a local code page.
     int size_needed = ::WideCharToMultiByte(0, 0, wstr_src.data(), (int)wstr_src.size(), nullptr, 0, nullptr, nullptr);
     std::string str_dst(size_needed, 0);
-    ::WideCharToMultiByte(0, 0, wstr_src.data(), (int)wstr_src.size(), const_cast<char*>(str_dst.data()), size_needed, nullptr, nullptr);
+    ::WideCharToMultiByte(0, 0, wstr_src.data(), (int)wstr_src.size(), str_dst.data(), size_needed, nullptr, nullptr);
     return str_dst;
 #else /* WIN32 */
     return src;
@@ -552,7 +552,7 @@ std::string decode_path(const char *src)
     // Convert the string encoded using the local code page to a wide string.
     int size_needed = ::MultiByteToWideChar(0, 0, src, len, nullptr, 0);
     std::wstring wstr_dst(size_needed, 0);
-    ::MultiByteToWideChar(0, 0, src, len, const_cast<wchar_t*>(wstr_dst.data()), size_needed);
+    ::MultiByteToWideChar(0, 0, src, len, wstr_dst.data(), size_needed);
     // Convert a wide string to utf8.
     return boost::nowide::narrow(wstr_dst.c_str());
 #else /* WIN32 */

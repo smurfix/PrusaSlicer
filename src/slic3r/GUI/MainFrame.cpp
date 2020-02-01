@@ -58,7 +58,8 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_S
 #endif // _WIN32
 
 	// initialize status bar
-	m_statusbar.reset(new ProgressStatusBar(this));
+	m_statusbar = std::make_shared<ProgressStatusBar>(this);
+    m_statusbar->set_font(GUI::wxGetApp().normal_font());
 	m_statusbar->embed(this);
     m_statusbar->set_status_text(_(L("Version")) + " " +
 		SLIC3R_VERSION +
@@ -67,7 +68,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_S
     /* Load default preset bitmaps before a tabpanel initialization,
      * but after filling of an em_unit value 
      */
-    wxGetApp().preset_bundle->load_default_preset_bitmaps(this);
+    wxGetApp().preset_bundle->load_default_preset_bitmaps();
 
     // initialize tabpanel and menubar
     init_tabpanel();
@@ -124,7 +125,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_S
         _3DScene::remove_all_canvases();
 //         Slic3r::GUI::deregister_on_request_update_callback();
 
-        // set to null tabs and a platter
+        // set to null tabs and a plater
         // to avoid any manipulations with them from App->wxEVT_IDLE after of the mainframe closing 
         wxGetApp().tabs_list.clear();
         wxGetApp().plater_ = nullptr;
@@ -344,7 +345,7 @@ void MainFrame::on_dpi_changed(const wxRect &suggested_rect)
     /* Load default preset bitmaps before a tabpanel initialization,
      * but after filling of an em_unit value
      */
-    wxGetApp().preset_bundle->load_default_preset_bitmaps(this);
+    wxGetApp().preset_bundle->load_default_preset_bitmaps();
 
     // update Plater
     wxGetApp().plater()->msw_rescale();
@@ -577,6 +578,11 @@ void MainFrame::init_menubar()
         append_menu_item(editMenu, wxID_ANY, _(L("&Paste")) + sep + GUI::shortkey_ctrl_prefix() + sep_space + "V",
             _(L("Paste clipboard")), [this](wxCommandEvent&) { m_plater->paste_from_clipboard(); },
             "paste_menu", nullptr, [this](){return m_plater->can_paste_from_clipboard(); }, this);
+        
+        editMenu->AppendSeparator();
+        append_menu_item(editMenu, wxID_ANY, _(L("Re&load from disk")) + sep + "F5",
+            _(L("Reload the plater from disk")), [this](wxCommandEvent&) { m_plater->reload_all_from_disk(); },
+            "", nullptr, [this]() {return !m_plater->model().objects.empty(); }, this);
     }
 
     // Window menu
@@ -727,7 +733,7 @@ void MainFrame::update_menubar()
     m_changeable_menu_items[miSend]         ->SetItemLabel((is_fff ? _(L("S&end G-code"))           : _(L("S&end to print"))) + dots    + "\tCtrl+Shift+G");
 
     m_changeable_menu_items[miMaterialTab]  ->SetItemLabel((is_fff ? _(L("&Filament Settings Tab")) : _(L("Mate&rial Settings Tab")))   + "\tCtrl+3");
-    m_changeable_menu_items[miMaterialTab]  ->SetBitmap(create_scaled_bitmap(this, is_fff ? "spool": "resin"));
+    m_changeable_menu_items[miMaterialTab]  ->SetBitmap(create_scaled_bitmap(is_fff ? "spool": "resin"));
 }
 
 // To perform the "Quck Slice", "Quick Slice and Save As", "Repeat last Quick Slice" and "Slice to SVG".
@@ -1006,7 +1012,7 @@ void MainFrame::load_configbundle(wxString file/* = wxEmptyString, const bool re
 }
 
 // Load a provied DynamicConfig into the Print / Filament / Printer tabs, thus modifying the active preset.
-// Also update the platter with the new presets.
+// Also update the plater with the new presets.
 void MainFrame::load_config(const DynamicPrintConfig& config)
 {
 	PrinterTechnology printer_technology = wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology();

@@ -47,6 +47,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Gizmos/GLGizmoFlatten.hpp
     GUI/Gizmos/GLGizmoCut.cpp
     GUI/Gizmos/GLGizmoCut.hpp
+    GUI/Gizmos/GLGizmoHollow.cpp
+    GUI/Gizmos/GLGizmoHollow.hpp
     GUI/GLSelectionRectangle.cpp
     GUI/GLSelectionRectangle.hpp
     GUI/GLTexture.hpp
@@ -140,8 +142,11 @@ set(SLIC3R_GUI_SOURCES
     GUI/ProgressStatusBar.cpp
     GUI/PrintHostDialogs.cpp
     GUI/PrintHostDialogs.hpp
+    GUI/Job.hpp
     GUI/Mouse3DController.cpp
     GUI/Mouse3DController.hpp
+    GUI/DoubleSlider.cpp
+    GUI/DoubleSlider.hpp
     Utils/Http.cpp
     Utils/Http.hpp
     Utils/FixModelByWin10.cpp
@@ -152,6 +157,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/Duet.hpp
     Utils/FlashAir.cpp
     Utils/FlashAir.hpp
+    Utils/AstroBox.cpp
+    Utils/AstroBox.hpp
     Utils/PrintHost.cpp
     Utils/PrintHost.hpp
     Utils/Bonjour.cpp
@@ -171,8 +178,8 @@ if (APPLE)
             Utils/MacDarkMode.mm
             GUI/RemovableDriveManagerMM.mm
             GUI/RemovableDriveManagerMM.h
+            GUI/Mouse3DHandlerMac.mm
         )
-    #DK
     FIND_LIBRARY(DISKARBITRATION_LIBRARY DiskArbitration)
 
 endif ()
@@ -182,7 +189,7 @@ add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
 encoding_check(libslic3r_gui)
 
 target_link_libraries(libslic3r_gui libslic3r avrdude cereal imgui GLEW::GLEW OpenGL::GL OpenGL::GLU hidapi)
-#DK
+
 if(APPLE)
     target_link_libraries(libslic3r_gui ${DISKARBITRATION_LIBRARY})
 endif()

@@ -46,10 +46,12 @@ src/slic3r/GUI/Tab.hpp
 src/slic3r/GUI/UpdateDialogs.cpp
 src/slic3r/GUI/WipeTowerDialog.cpp
 src/slic3r/GUI/wxExtensions.cpp
+src/slic3r/GUI/DoubleSlider.cpp
 src/slic3r/GUI/ExtruderSequenceDialog.cpp
 src/slic3r/Utils/Duet.cpp
 src/slic3r/Utils/OctoPrint.cpp
 src/slic3r/Utils/FlashAir.cpp
+src/slic3r/Utils/AstroBox.cpp
 src/slic3r/Utils/PresetUpdater.cpp
 src/slic3r/Utils/FixModelByWin10.cpp
 src/libslic3r/SLA/SLAPad.cpp
