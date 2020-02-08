@@ -348,8 +348,24 @@ void GLGizmosManager::set_sla_support_data(ModelObject* model_object)
     if (!m_enabled || m_gizmos.empty())
         return;
 
-    dynamic_cast<GLGizmoSlaSupports*>(m_gizmos[SlaSupports].get())->set_sla_support_data(model_object, m_parent.get_selection());
-    dynamic_cast<GLGizmoHollow*>(m_gizmos[Hollow].get())->set_sla_support_data(model_object, m_parent.get_selection());
+    auto* gizmo_supports = dynamic_cast<GLGizmoSlaSupports*>(m_gizmos[SlaSupports].get());
+    auto* gizmo_hollow = dynamic_cast<GLGizmoHollow*>(m_gizmos[Hollow].get());
+
+
+    // Update common data for hollowing and sla support gizmos.
+    if (wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology() == ptSLA) {
+        if (m_common_gizmos_data->update_from_backend(m_parent, model_object)) {
+            // FIXME: this is a hack to make that the clipping plane is
+            // updated when the update set its position to zero. The clipping
+            // plane itself should be common, including the update_function.
+            // Then update_from_backend could do it itself.
+            gizmo_supports->update_clipping_plane();
+            gizmo_hollow->update_clipping_plane();
+        }
+    }
+
+    gizmo_supports->set_sla_support_data(model_object, m_parent.get_selection());
+    gizmo_hollow->set_sla_support_data(model_object, m_parent.get_selection());
 }
 
 // Returns true if the gizmo used the event to do something, false otherwise.
@@ -497,7 +513,7 @@ bool GLGizmosManager::on_mouse(wxMouseEvent& evt)
             processed = true;
         }
         else if (evt.Dragging() && (m_parent.get_move_volume_id() != -1) && (m_current == SlaSupports || m_current == Hollow))
-                        // don't allow dragging objects with the Sla gizmo on
+            // don't allow dragging objects with the Sla gizmo on
             processed = true;
         else if (evt.Dragging() && (m_current == SlaSupports || m_current == Hollow) && gizmo_event(SLAGizmoEventType::Dragging, mouse_pos, evt.ShiftDown(), evt.AltDown(), evt.ControlDown()))
         {
@@ -554,12 +570,9 @@ bool GLGizmosManager::on_mouse(wxMouseEvent& evt)
         else if (evt.LeftUp() && is_dragging())
         {
             switch (m_current) {
-            case Move : m_parent.do_move(L("Gizmo-Move"));
-                        break;
-            case Scale : m_parent.do_scale(L("Gizmo-Scale"));
-                         break;
-            case Rotate : m_parent.do_rotate(L("Gizmo-Rotate"));
-                          break;
+            case Move : m_parent.do_move(L("Gizmo-Move")); break;
+            case Scale : m_parent.do_scale(L("Gizmo-Scale")); break;
+            case Rotate : m_parent.do_rotate(L("Gizmo-Rotate")); break;
             default : break;
             }
 
@@ -787,6 +800,21 @@ bool GLGizmosManager::on_key(wxKeyEvent& evt)
         {
 //            m_parent.set_cursor(GLCanvas3D::Cross);
             processed = true;
+        }
+        else if (m_current == Cut)
+        {
+            auto do_move = [this, &processed](double delta_z) {
+                GLGizmoCut* cut = dynamic_cast<GLGizmoCut*>(get_current());
+                cut->set_cut_z(delta_z + cut->get_cut_z());
+                processed = true;
+            };
+
+            switch (keyCode)
+            {
+            case WXK_NUMPAD_UP:   case WXK_UP:   { do_move(1.0); break; }
+            case WXK_NUMPAD_DOWN: case WXK_DOWN: { do_move(-1.0); break; }
+            default: { break; }
+            }
         }
     }
 

@@ -145,8 +145,6 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_S
     update_ui_from_settings();    // FIXME (?)
 }
 
-MainFrame::~MainFrame() = default;
-
 void MainFrame::update_title()
 {
     wxString title = wxEmptyString;
@@ -158,7 +156,22 @@ void MainFrame::update_title()
         if (!project.empty())
             title += (project + " - ");
     }
-    title += (wxString(SLIC3R_BUILD_ID) + " " + _(L("based on Slic3r")));
+
+    std::string build_id = SLIC3R_BUILD_ID;
+    size_t 		idx_plus = build_id.find('+');
+    if (idx_plus != build_id.npos) {
+    	// Parse what is behind the '+'. If there is a number, then it is a build number after the label, and full build ID is shown.
+    	int commit_after_label;
+    	if (! boost::starts_with(build_id.data() + idx_plus + 1, "UNKNOWN") && sscanf(build_id.data() + idx_plus + 1, "%d-", &commit_after_label) == 0) {
+    		// It is a release build.
+    		build_id.erase(build_id.begin() + idx_plus, build_id.end());    		
+#if defined(_WIN32) && ! defined(_WIN64)
+    		// People are using 32bit slicer on a 64bit machine by mistake. Make it explicit.
+            build_id += " 32 bit";
+#endif
+    	}
+    }
+    title += (wxString(build_id) + " " + _(L("based on Slic3r")));
 
     SetTitle(title);
 }
@@ -550,10 +563,10 @@ void MainFrame::init_menubar()
         wxString hotkey_delete = "Del";
     #endif
         append_menu_item(editMenu, wxID_ANY, _(L("&Select all")) + sep + GUI::shortkey_ctrl_prefix() + sep_space + "A",
-            _(L("Selects all objects")), [this](wxCommandEvent&) { if (m_plater != nullptr) m_plater->select_all(); },
+            _(L("Selects all objects")), [this](wxCommandEvent&) { m_plater->select_all(); },
             "", nullptr, [this](){return can_select(); }, this);
         append_menu_item(editMenu, wxID_ANY, _(L("D&eselect all")) + sep + "Esc",
-            _(L("Deselects all objects")), [this](wxCommandEvent&) { if (m_plater != nullptr) m_plater->deselect_all(); },
+            _(L("Deselects all objects")), [this](wxCommandEvent&) { m_plater->deselect_all(); },
             "", nullptr, [this](){return can_deselect(); }, this);
         editMenu->AppendSeparator();
         append_menu_item(editMenu, wxID_ANY, _(L("&Delete selected")) + sep + hotkey_delete,
@@ -659,6 +672,12 @@ void MainFrame::init_menubar()
             "", nullptr, [this](){return can_change_view(); }, this);
         append_menu_item(viewMenu, wxID_ANY, _(L("Right")) + sep + "&6", _(L("Right View")), [this](wxCommandEvent&) { select_view("right"); },
             "", nullptr, [this](){return can_change_view(); }, this);
+#if ENABLE_SHOW_SCENE_LABELS
+        viewMenu->AppendSeparator();
+        append_menu_check_item(viewMenu, wxID_ANY, _(L("Show &labels")) + sep + "E", _(L("Show object/instance labels in 3D scene")),
+            [this](wxCommandEvent&) { m_plater->show_view3D_labels(!m_plater->are_view3D_labels_shown()); }, this,
+            [this]() { return m_plater->is_view3D_shown(); }, [this]() { return m_plater->are_view3D_labels_shown(); }, this);
+#endif // ENABLE_SHOW_SCENE_LABELS
     }
 
     // Help menu

@@ -1529,30 +1529,6 @@ void PresetBundle::set_filament_preset(size_t idx, const std::string &name)
     filament_presets[idx] = Preset::remove_suffix_modified(name);
 }
 
-static inline int hex_digit_to_int(const char c)
-{
-    return 
-        (c >= '0' && c <= '9') ? int(c - '0') : 
-        (c >= 'A' && c <= 'F') ? int(c - 'A') + 10 :
-        (c >= 'a' && c <= 'f') ? int(c - 'a') + 10 : -1;
-}
-
-bool PresetBundle::parse_color(const std::string &scolor, unsigned char *rgb_out)
-{
-    rgb_out[0] = rgb_out[1] = rgb_out[2] = 0;
-    if (scolor.size() != 7 || scolor.front() != '#')
-        return false;
-    const char *c = scolor.data() + 1;
-    for (size_t i = 0; i < 3; ++ i) {
-        int digit1 = hex_digit_to_int(*c ++);
-        int digit2 = hex_digit_to_int(*c ++);
-        if (digit1 == -1 || digit2 == -1)
-            return false;
-        rgb_out[i] = (unsigned char)(digit1 * 16 + digit2);
-    }
-    return true;
-}
-
 void PresetBundle::load_default_preset_bitmaps()
 {
     // Clear bitmap cache, before load new scaled default preset bitmaps 
@@ -1580,7 +1556,7 @@ void PresetBundle::update_plater_filament_ui(unsigned int idx_extruder, GUI::Pre
 
     unsigned char rgb[3];
     std::string extruder_color = this->printers.get_edited_preset().config.opt_string("extruder_colour", idx_extruder);
-    if (! parse_color(extruder_color, rgb))
+    if (!m_bitmapCache->parse_color(extruder_color, rgb))
         // Extruder color is not defined.
         extruder_color.clear();
 
@@ -1650,10 +1626,10 @@ void PresetBundle::update_plater_filament_ui(unsigned int idx_extruder, GUI::Pre
                 // Paint a red flag for incompatible presets.
                 bmps.emplace_back(preset.is_compatible ? m_bitmapCache->mkclear(normal_icon_width, icon_height) : *m_bitmapIncompatible);
             // Paint the color bars.
-            parse_color(filament_rgb, rgb);
+            m_bitmapCache->parse_color(filament_rgb, rgb);
             bmps.emplace_back(m_bitmapCache->mksolid(single_bar ? wide_icon_width : normal_icon_width, icon_height, rgb));
             if (! single_bar) {
-                parse_color(extruder_rgb, rgb);
+                m_bitmapCache->parse_color(extruder_rgb, rgb);
                 bmps.emplace_back(m_bitmapCache->mksolid(thin_icon_width, icon_height, rgb));
             }
             // Paint a lock at the system presets.
@@ -1702,7 +1678,23 @@ void PresetBundle::update_plater_filament_ui(unsigned int idx_extruder, GUI::Pre
 		}
 	}
 
-    ui->set_label_marker(ui->Append(PresetCollection::separator(L("Add/Remove filaments")), wxNullBitmap), GUI::PresetComboBox::LABEL_ITEM_WIZARD_FILAMENTS);
+    std::string   bitmap_key = "";
+    if (wide_icons)
+        bitmap_key += "wide,";
+    bitmap_key += "edit_preset_list";
+    wxBitmap* bmp = m_bitmapCache->find(bitmap_key);
+    if (bmp == nullptr) {
+        // Create the bitmap with color bars.
+        std::vector<wxBitmap> bmps;
+        if (wide_icons)
+            // Paint a red flag for incompatible presets.
+            bmps.emplace_back(m_bitmapCache->mkclear(normal_icon_width, icon_height));
+        // Paint the color bars + a lock at the system presets.
+        bmps.emplace_back(m_bitmapCache->mkclear(wide_icon_width+space_icon_width, icon_height));
+        bmps.emplace_back(create_scaled_bitmap("edit_uni"));
+        bmp = m_bitmapCache->insert(bitmap_key, bmps);
+    }
+    ui->set_label_marker(ui->Append(PresetCollection::separator(L("Add/Remove filaments")), *bmp), GUI::PresetComboBox::LABEL_ITEM_WIZARD_FILAMENTS);
 
     /* But, if selected_preset_item is still equal to INT_MAX, it means that
      * there is no presets added to the list.

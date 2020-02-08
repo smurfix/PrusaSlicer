@@ -80,6 +80,7 @@ public:
     bool is_selection_rectangle_dragging() const { return m_selection_rectangle.is_dragging(); }
     bool has_backend_supports() const;
     void reslice_SLA_supports(bool postpone_error_messages = false) const;
+    void update_clipping_plane(bool keep_normal = false) const;
 
 private:
     bool on_init() override;
@@ -91,8 +92,6 @@ private:
     void render_points(const Selection& selection, bool picking = false) const;
     void render_clipping_plane(const Selection& selection) const;
     void render_hollowed_mesh() const;
-    bool is_mesh_update_necessary() const;
-    void update_mesh();
     bool unsaved_changes() const;
 
     bool m_lock_unique_islands = false;
@@ -105,8 +104,7 @@ private:
     mutable std::vector<CacheEntry> m_editing_cache; // a support point and whether it is currently selected
     std::vector<sla::SupportPoint> m_normal_cache; // to restore after discarding changes or undo/redo
 
-    float m_clipping_plane_distance = 0.f;
-    std::unique_ptr<ClippingPlane> m_clipping_plane;
+    //std::unique_ptr<ClippingPlane> m_clipping_plane;
 
     // This map holds all translated description texts, so they can be easily referenced during layout calculations
     // etc. When language changes, GUI is recreated and this class constructed again, so the change takes effect.
@@ -142,7 +140,6 @@ private:
     void switch_to_editing_mode();
     void disable_editing_mode();
     void reset_clipping_plane_normal() const;
-    void update_clipping_plane(bool keep_normal = false) const;
 
 protected:
     void on_set_state() override;

@@ -978,6 +978,8 @@ void ObjectList::key_event(wxKeyEvent& event)
         ) {
         remove();
     }
+    else if (event.GetKeyCode() == WXK_F5)
+        wxGetApp().plater()->reload_all_from_disk();
     else if (wxGetKeyState(wxKeyCode('A')) && wxGetKeyState(WXK_CONTROL/*WXK_SHIFT*/))
         select_item_all_children();
     else if (wxGetKeyState(wxKeyCode('C')) && wxGetKeyState(WXK_CONTROL)) 
@@ -1132,6 +1134,8 @@ void ObjectList::OnDrop(wxDataViewEvent &event)
     changed_object(m_dragged_data.obj_idx());
 
     m_dragged_data.clear();
+
+    wxGetApp().plater()->set_current_canvas_as_dirty();
 }
 
 
@@ -1647,14 +1651,9 @@ void ObjectList::append_menu_item_export_stl(wxMenu* menu) const
 
 void ObjectList::append_menu_item_reload_from_disk(wxMenu* menu) const
 {
-#if ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
-    append_menu_item(menu, wxID_ANY, _(L("Reload from disk")), _(L("Reload the selected volumes from disk")),
-        [this](wxCommandEvent&) { wxGetApp().plater()->reload_from_disk(); }, "", menu);
-#else
     append_menu_item(menu, wxID_ANY, _(L("Reload from disk")), _(L("Reload the selected volumes from disk")),
         [this](wxCommandEvent&) { wxGetApp().plater()->reload_from_disk(); }, "", menu,
         []() { return wxGetApp().plater()->can_reload_from_disk(); }, wxGetApp().plater());
-#endif // ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 }
 
 void ObjectList::append_menu_item_change_extruder(wxMenu* menu) const
@@ -2270,6 +2269,10 @@ void ObjectList::split()
         // add settings to the part, if it has those
         add_settings_item(vol_item, &volume->config);
     }
+
+#if ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
+    model_object->input_file.clear();
+#endif // ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 
     if (parent == item)
         Expand(parent);
@@ -3903,6 +3906,8 @@ void ObjectList::OnEditingDone(wxDataViewEvent &event)
 	// Here the last active column is forgotten, so when leaving the editing mode, the next mouse click will not enter the editing mode of the newly selected column.
 	m_last_selected_column = -1;
 #endif //__WXMSW__
+
+    wxGetApp().plater()->set_current_canvas_as_dirty();
 }
 
 void ObjectList::show_multi_selection_menu()
@@ -3922,15 +3927,10 @@ void ObjectList::show_multi_selection_menu()
             _(L("Select extruder number for selected objects and/or parts")),
             [this](wxCommandEvent&) { extruder_selection(); }, "", menu);
 
-#if ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
-    append_menu_item(menu, wxID_ANY, _(L("Reload from disk")), _(L("Reload the selected volumes from disk")),
-        [this](wxCommandEvent&) { wxGetApp().plater()->reload_from_disk(); }, "", menu);
-#else
     append_menu_item(menu, wxID_ANY, _(L("Reload from disk")), _(L("Reload the selected volumes from disk")),
         [this](wxCommandEvent&) { wxGetApp().plater()->reload_from_disk(); }, "", menu, []() {
         return wxGetApp().plater()->can_reload_from_disk();
     }, wxGetApp().plater());
-#endif // ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 
     wxGetApp().plater()->PopupMenu(menu);
 }

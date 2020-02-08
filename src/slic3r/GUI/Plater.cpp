@@ -874,7 +874,7 @@ Sidebar::Sidebar(Plater *parent)
 
     init_scalable_btn(&p->btn_send_gcode   , "export_gcode", _(L("Send to printer")));
     init_scalable_btn(&p->btn_remove_device, "cross"       , _(L("Remove device")));
-	init_scalable_btn(&p->btn_export_gcode_removable, "export_to_sd", _(L("Export to SD card/ USB thumb drive")));
+	init_scalable_btn(&p->btn_export_gcode_removable, "export_to_sd", _(L("Export to SD card / Flash drive")));
 
     // regular buttons "Slice now" and "Export G-code" 
 
@@ -1784,6 +1784,11 @@ struct Plater::priv
     bool is_preview_loaded() const { return preview->is_loaded(); }
     bool is_view3D_shown() const { return current_panel == view3D; }
 
+#if ENABLE_SHOW_SCENE_LABELS
+    bool are_view3D_labels_shown() const { return (current_panel == view3D) && view3D->get_canvas3d()->are_labels_shown(); }
+    void show_view3D_labels(bool show) { if (current_panel == view3D) view3D->get_canvas3d()->show_labels(show); }
+#endif // ENABLE_SHOW_SCENE_LABELS
+
     void set_current_canvas_as_dirty();
 #if ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
     GLCanvas3D* get_current_canvas3D();
@@ -1918,9 +1923,7 @@ struct Plater::priv
     bool can_fix_through_netfabb() const;
     bool can_set_instance_to_object() const;
     bool can_mirror() const;
-#if !ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
     bool can_reload_from_disk() const;
-#endif // !ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 
 #if ENABLE_THUMBNAIL_GENERATOR
     void generate_thumbnail(ThumbnailData& data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background);
@@ -1980,7 +1983,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         "extruder_colour", "filament_colour", "max_print_height", "printer_model", "printer_technology",
         // These values are necessary to construct SlicingParameters by the Canvas3D variable layer height editor.
         "layer_height", "first_layer_height", "min_layer_height", "max_layer_height",
-        "brim_width", "perimeters", "perimeter_extruder", "fill_density", "infill_extruder", "top_solid_layers", "bottom_solid_layers", "solid_infill_extruder",
+        "brim_width", "perimeters", "perimeter_extruder", "fill_density", "infill_extruder", "top_solid_layers", 
         "support_material", "support_material_extruder", "support_material_interface_extruder", "support_material_contact_distance", "raft_layers"
         }))
     , sidebar(new Sidebar(q))
@@ -2062,6 +2065,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     view3D_canvas->Bind(EVT_GLCANVAS_INCREASE_INSTANCES, [this](Event<int> &evt)
         { if (evt.data == 1) this->q->increase_instances(); else if (this->can_decrease_instances()) this->q->decrease_instances(); });
     view3D_canvas->Bind(EVT_GLCANVAS_INSTANCE_MOVED, [this](SimpleEvent&) { update(); });
+    view3D_canvas->Bind(EVT_GLCANVAS_FORCE_UPDATE, [this](SimpleEvent&) { update(); });
     view3D_canvas->Bind(EVT_GLCANVAS_WIPETOWER_MOVED, &priv::on_wipetower_moved, this);
     view3D_canvas->Bind(EVT_GLCANVAS_WIPETOWER_ROTATED, &priv::on_wipetower_rotated, this);
     view3D_canvas->Bind(EVT_GLCANVAS_INSTANCE_ROTATED, [this](SimpleEvent&) { update(); });
@@ -2076,7 +2080,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     view3D_canvas->Bind(EVT_GLCANVAS_RESET_LAYER_HEIGHT_PROFILE, [this](SimpleEvent&) { this->view3D->get_canvas3d()->reset_layer_height_profile(); });
     view3D_canvas->Bind(EVT_GLCANVAS_ADAPTIVE_LAYER_HEIGHT_PROFILE, [this](Event<float>& evt) { this->view3D->get_canvas3d()->adaptive_layer_height_profile(evt.data); });
     view3D_canvas->Bind(EVT_GLCANVAS_SMOOTH_LAYER_HEIGHT_PROFILE, [this](HeightProfileSmoothEvent& evt) { this->view3D->get_canvas3d()->smooth_layer_height_profile(evt.data); });
-    view3D_canvas->Bind(EVT_GLCANVAS_RELOAD_FROM_DISK, [this](SimpleEvent&) { if (!this->model.objects.empty()) this->reload_all_from_disk(); });
+    view3D_canvas->Bind(EVT_GLCANVAS_RELOAD_FROM_DISK, [this](SimpleEvent&) { this->reload_all_from_disk(); });
 
     // 3DScene/Toolbar:
     view3D_canvas->Bind(EVT_GLTOOLBAR_ADD, &priv::on_action_add, this);
@@ -3253,7 +3257,7 @@ void Plater::priv::reload_from_disk()
                 missing_input_paths.push_back(volume->source.input_file);
         }
 #if ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
-        else if (!volume->name.empty())
+        else if (!object->input_file.empty() && !volume->name.empty())
             missing_input_paths.push_back(volume->name);
 #endif // ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
     }
@@ -3451,6 +3455,9 @@ void Plater::priv::reload_from_disk()
 
 void Plater::priv::reload_all_from_disk()
 {
+    if (model.objects.empty())
+        return;
+
     Plater::TakeSnapshot snapshot(q, _(L("Reload all from disk")));
     Plater::SuppressSnapshots suppress(q);
 
@@ -3933,13 +3940,8 @@ bool Plater::priv::init_common_menu(wxMenu* menu, const bool is_part/* = false*/
         append_menu_item(menu, wxID_ANY, _(L("Delete")) + "\tDel", _(L("Remove the selected object")),
             [this](wxCommandEvent&) { q->remove_selected();         }, "delete",            nullptr, [this]() { return can_delete(); }, q);
 
-#if ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
-        append_menu_item(menu, wxID_ANY, _(L("Reload from disk")), _(L("Reload the selected volumes from disk")),
-            [this](wxCommandEvent&) { q->reload_from_disk(); }, "", menu);
-#else
         append_menu_item(menu, wxID_ANY, _(L("Reload from disk")), _(L("Reload the selected volumes from disk")),
             [this](wxCommandEvent&) { q->reload_from_disk(); }, "", menu, [this]() { return can_reload_from_disk(); }, q);
-#endif // ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 
         sidebar->obj_list()->append_menu_item_export_stl(menu);
     }
@@ -3967,13 +3969,8 @@ bool Plater::priv::init_common_menu(wxMenu* menu, const bool is_part/* = false*/
         wxMenuItem* menu_item_printable = sidebar->obj_list()->append_menu_item_printable(menu, q);
         menu->AppendSeparator();
 
-#if ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
-        append_menu_item(menu, wxID_ANY, _(L("Reload from disk")), _(L("Reload the selected object from disk")),
-            [this](wxCommandEvent&) { reload_from_disk(); }, "", nullptr);
-#else
         append_menu_item(menu, wxID_ANY, _(L("Reload from disk")), _(L("Reload the selected object from disk")),
             [this](wxCommandEvent&) { reload_from_disk(); }, "", nullptr, [this]() { return can_reload_from_disk(); }, q);
-#endif // ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 
         append_menu_item(menu, wxID_ANY, _(L("Export as STL")) + dots, _(L("Export the selected object as STL file")),
             [this](wxCommandEvent&) { q->export_stl(false, true); }, "", nullptr, 
@@ -4153,7 +4150,6 @@ bool Plater::priv::can_mirror() const
     return get_selection().is_from_single_instance();
 }
 
-#if !ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 bool Plater::priv::can_reload_from_disk() const
 {
     // struct to hold selected ModelVolumes by their indices
@@ -4190,16 +4186,20 @@ bool Plater::priv::can_reload_from_disk() const
     std::vector<fs::path> paths;
     for (const SelectedVolume& v : selected_volumes)
     {
-        const ModelVolume* volume = model.objects[v.object_idx]->volumes[v.volume_idx];
+        const ModelObject* object = model.objects[v.object_idx];
+        const ModelVolume* volume = object->volumes[v.volume_idx];
         if (!volume->source.input_file.empty())
             paths.push_back(volume->source.input_file);
+#if ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
+        else if (!object->input_file.empty() && !volume->name.empty())
+            paths.push_back(volume->name);
+#endif // ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
     }
     std::sort(paths.begin(), paths.end());
     paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
 
     return !paths.empty();
 }
-#endif // !ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 
 void Plater::priv::set_bed_shape(const Pointfs& shape, const std::string& custom_texture, const std::string& custom_model)
 {
@@ -4669,6 +4669,11 @@ bool Plater::is_preview_shown() const { return p->is_preview_shown(); }
 bool Plater::is_preview_loaded() const { return p->is_preview_loaded(); }
 bool Plater::is_view3D_shown() const { return p->is_view3D_shown(); }
 
+#if ENABLE_SHOW_SCENE_LABELS
+bool Plater::are_view3D_labels_shown() const { return p->are_view3D_labels_shown(); }
+void Plater::show_view3D_labels(bool show) { p->show_view3D_labels(show); }
+#endif // ENABLE_SHOW_SCENE_LABELS
+
 void Plater::select_all() { p->select_all(); }
 void Plater::deselect_all() { p->deselect_all(); }
 
@@ -5130,7 +5135,7 @@ void Plater::reslice_SLA_supports(const ModelObject &object, bool postpone_error
 
 void Plater::reslice_SLA_hollowing(const ModelObject &object, bool postpone_error_messages)
 {
-    reslice_SLA_until_step(slaposHollowing, object, postpone_error_messages);
+    reslice_SLA_until_step(slaposDrillHoles, object, postpone_error_messages);
 }
 
 void Plater::reslice_SLA_until_step(SLAPrintObjectStep step, const ModelObject &object, bool postpone_error_messages)
@@ -5369,6 +5374,13 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
 
     if (p->main_frame->is_loaded())
         this->p->schedule_background_process();
+}
+
+void Plater::set_bed_shape() const
+{
+	p->set_bed_shape(p->config->option<ConfigOptionPoints>("bed_shape")->values,
+		p->config->option<ConfigOptionString>("bed_custom_texture")->value,
+		p->config->option<ConfigOptionString>("bed_custom_model")->value);
 }
 
 void Plater::force_filament_colors_update()
@@ -5688,9 +5700,7 @@ bool Plater::can_copy_to_clipboard() const
 
 bool Plater::can_undo() const { return p->undo_redo_stack().has_undo_snapshot(); }
 bool Plater::can_redo() const { return p->undo_redo_stack().has_redo_snapshot(); }
-#if !ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 bool Plater::can_reload_from_disk() const { return p->can_reload_from_disk(); }
-#endif // !ENABLE_BACKWARD_COMPATIBLE_RELOAD_FROM_DISK
 const UndoRedo::Stack& Plater::undo_redo_stack_main() const { return p->undo_redo_stack_main(); }
 void Plater::enter_gizmos_stack() { p->enter_gizmos_stack(); }
 void Plater::leave_gizmos_stack() { p->leave_gizmos_stack(); }

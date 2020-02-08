@@ -1091,7 +1091,7 @@ namespace DoExport {
 static inline std::vector<const PrintInstance*> sort_object_instances_by_max_z(const Print &print)
 {
     std::vector<const PrintObject*> objects(print.objects().begin(), print.objects().end());
-	std::sort(objects.begin(), objects.end(), [](const PrintObject *po1, const PrintObject *po2) { return po1->size()(2) < po2->size()(2); });
+	std::sort(objects.begin(), objects.end(), [](const PrintObject *po1, const PrintObject *po2) { return po1->height() < po2->height(); });
 	std::vector<const PrintInstance*> instances;
 	instances.reserve(objects.size());
 	for (const PrintObject *object : objects)
@@ -1101,7 +1101,11 @@ static inline std::vector<const PrintInstance*> sort_object_instances_by_max_z(c
 }
 
 // Produce a vector of PrintObjects in the order of their respective ModelObjects in print.model().
-static inline std::vector<const PrintInstance*> sort_object_instances_by_model_order(const Print &print)
+#if ENABLE_SHOW_SCENE_LABELS
+std::vector<const PrintInstance*> sort_object_instances_by_model_order(const Print& print)
+#else
+static inline std::vector<const PrintInstance*> sort_object_instances_by_model_order(const Print& print)
+#endif // ENABLE_SHOW_SCENE_LABELS
 {
     // Build up map from ModelInstance* to PrintInstance*
     std::vector<std::pair<const ModelInstance*, const PrintInstance*>> model_instance_to_print_instance;
@@ -1770,7 +1774,7 @@ namespace ProcessLayer
     	const CustomGCode::Item 								*custom_gcode,
         // ID of the first extruder printing this layer.
         unsigned int                                             first_extruder_id,
-		bool  											         single_material_print)
+		bool  											         single_extruder_printer)
 	{
         std::string gcode;
         
@@ -1778,31 +1782,39 @@ namespace ProcessLayer
 			// Extruder switches are processed by LayerTools, they should be filtered out.
 			assert(custom_gcode->gcode != ToolChangeCode);
 
-            const std::string &custom_code = custom_gcode->gcode;
+            const std::string  &custom_code  = custom_gcode->gcode;
+            bool  				color_change = custom_code == ColorChangeCode;
+            bool 				tool_change  = custom_code == ToolChangeCode;
+		    // Tool Change is applied as Color Change for a single extruder printer only.
+		    assert(! tool_change || single_extruder_printer);
+
 		    std::string pause_print_msg;
 		    int m600_extruder_before_layer = -1;
-	        if (custom_code == ColorChangeCode && custom_gcode->extruder > 0)
+	        if (color_change && custom_gcode->extruder > 0)
 	            m600_extruder_before_layer = custom_gcode->extruder - 1;
 	        else if (custom_code == PausePrintCode)
 	            pause_print_msg = custom_gcode->color;
 
-		    // we should add or not colorprint_change in respect to nozzle_diameter count instead of really used extruders count	        
-	        if (custom_code == ColorChangeCode) // color change
+		    // we should add or not colorprint_change in respect to nozzle_diameter count instead of really used extruders count
+	        if (color_change || tool_change)
 	        {
+		        // Color Change or Tool Change as Color Change.
 	            // add tag for analyzer
 	            gcode += "; " + GCodeAnalyzer::Color_Change_Tag + ",T" + std::to_string(m600_extruder_before_layer) + "\n";
 	            // add tag for time estimator
 	            gcode += "; " + GCodeTimeEstimator::Color_Change_Tag + "\n";
 
-	            if (!single_material_print && m600_extruder_before_layer >= 0 && first_extruder_id != m600_extruder_before_layer
+	            if (!single_extruder_printer && m600_extruder_before_layer >= 0 && first_extruder_id != m600_extruder_before_layer
 	                // && !MMU1
 	                ) {
 	                //! FIXME_in_fw show message during print pause
 	                gcode += "M601\n"; // pause print
 	                gcode += "M117 Change filament for Extruder " + std::to_string(m600_extruder_before_layer) + "\n";
 	            }
-	            else 
-	                gcode += custom_code + "\n";
+                else {
+                    gcode += ColorChangeCode;
+                    gcode += "\n";
+                }
 	        } 
 	        else
 	        {
@@ -2604,8 +2616,9 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
             }
         }
         else if (seam_position == spRear) {
-            last_pos = m_layer->object()->bounding_box().center();
-            last_pos(1) += coord_t(3. * m_layer->object()->bounding_box().radius());
+            // Object is centered around (0,0) in its current coordinate system.
+            last_pos.x() = 0;
+            last_pos.y() += coord_t(3. * m_layer->object()->bounding_box().radius());
             last_pos_weight = 5.f;
         }
 

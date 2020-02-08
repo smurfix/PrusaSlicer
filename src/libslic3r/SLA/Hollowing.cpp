@@ -119,7 +119,7 @@ Contour3D DrainHole::to_mesh() const
 {
     auto r = double(radius);
     auto h = double(height);
-    sla::Contour3D hole = sla::cylinder(r, h);
+    sla::Contour3D hole = sla::cylinder(r, h, steps);
     Eigen::Quaterniond q;
     q.setFromTwoVectors(Vec3d{0., 0., 1.}, normal.cast<double>());
     for(auto& p : hole.points) p = q * p + pos.cast<double>();
@@ -262,7 +262,7 @@ void cut_drainholes(std::vector<ExPolygons> & obj_slices,
     TriangleMeshSlicer slicer(&mesh);
     
     std::vector<ExPolygons> hole_slices;
-    slicer.slice(slicegrid, closing_radius, &hole_slices, thr);
+    slicer.slice(slicegrid, SlicingMode::Regular, closing_radius, &hole_slices, thr);
     
     if (obj_slices.size() != hole_slices.size())
         BOOST_LOG_TRIVIAL(warning)

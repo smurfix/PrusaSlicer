@@ -168,6 +168,17 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->set_default_value(new ConfigOptionInt(3));
 
+    def = this->add("bottom_solid_min_thickness", coFloat);
+    //TRN To be shown in Print Settings "Top solid layers"
+    def->label = L("Bottom");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("The number of bottom solid layers is increased above bottom_solid_layers if necessary to satisfy "
+    				 "minimum thickness of bottom shell.");
+    def->full_label = L("Minimum bottom shell thickness");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
     def = this->add("bridge_acceleration", coFloat);
     def->label = L("Bridge");
     def->tooltip = L("This is the acceleration your printer will use for bridges. "
@@ -718,8 +729,9 @@ void PrintConfigDef::init_fff_params()
     def->gui_type = "f_enum_open";
     def->gui_flags = "show_value";
     def->enum_values.push_back("PLA");
-    def->enum_values.push_back("ABS");
     def->enum_values.push_back("PET");
+    def->enum_values.push_back("ABS");
+    def->enum_values.push_back("ASA");
     def->enum_values.push_back("FLEX");
     def->enum_values.push_back("HIPS");
     def->enum_values.push_back("EDGE");
@@ -1781,6 +1793,13 @@ void PrintConfigDef::init_fff_params()
     def->shortcut.push_back("bottom_solid_layers");
     def->min = 0;
 
+    def = this->add("solid_min_thickness", coFloat);
+    def->label = L("Minimum thickness of a top / bottom shell");
+    def->tooltip = L("Minimum thickness of a top / bottom shell");
+    def->shortcut.push_back("top_solid_min_thickness");
+    def->shortcut.push_back("bottom_solid_min_thickness");
+    def->min = 0;
+
     def = this->add("spiral_vase", coBool);
     def->label = L("Spiral vase");
     def->tooltip = L("This feature will raise Z gradually while printing a single-walled object "
@@ -2126,6 +2145,18 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Top solid layers");
     def->min = 0;
     def->set_default_value(new ConfigOptionInt(3));
+
+    def = this->add("top_solid_min_thickness", coFloat);
+    //TRN To be shown in Print Settings "Top solid layers"
+    def->label = L("Top");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("The number of top solid layers is increased above top_solid_layers if necessary to satisfy "
+    				 "minimum thickness of top shell."
+    				 " This is useful to prevent pillowing effect when printing with variable layer height.");
+    def->full_label = L("Minimum top shell thickness");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->set_default_value(new ConfigOptionFloat(0.));
 
     def = this->add("travel_speed", coFloat);
     def->label = L("Travel");
@@ -2903,7 +2934,7 @@ void PrintConfigDef::init_sla_params()
     def = this->add("hollowing_closing_distance", coFloat);
     def->label = L("Hollowing closing distance");
     def->category = L("Hollowing");
-    def->tooltip  = L("");
+    def->tooltip  = "";//L("");
     def->min = 0;
     def->max = 10;
     def->mode = comExpert;

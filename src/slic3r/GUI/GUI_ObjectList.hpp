@@ -3,6 +3,7 @@
 
 #include <map>
 #include <vector>
+#include <set>
 
 #include <wx/bitmap.h>
 #include <wx/dataview.h>
@@ -10,6 +11,7 @@
 
 #include "Event.hpp"
 #include "wxExtensions.hpp"
+#include "ObjectDataViewModel.hpp"
 
 class wxBoxSizer;
 class wxBitmapComboBox;

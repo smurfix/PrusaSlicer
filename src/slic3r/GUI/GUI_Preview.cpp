@@ -65,6 +65,9 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Camera& camera, GLToolbar& view_
     m_canvas->enable_selection(true);
     m_canvas->enable_main_toolbar(true);
     m_canvas->enable_undoredo_toolbar(true);
+#if ENABLE_SHOW_SCENE_LABELS
+    m_canvas->enable_labels(true);
+#endif // ENABLE_SHOW_SCENE_LABELS
 
     wxBoxSizer* main_sizer = new wxBoxSizer(wxVERTICAL);
     main_sizer->Add(m_canvas_widget, 1, wxALL | wxEXPAND, 0);
@@ -591,6 +594,11 @@ void Preview::create_double_slider()
 
     // sizer, m_canvas_widget
     m_canvas_widget->Bind(wxEVT_KEY_DOWN, &Preview::update_double_slider_from_canvas, this);
+    m_canvas_widget->Bind(wxEVT_KEY_UP, [this](wxKeyEvent& event) {
+        if (event.GetKeyCode() == WXK_SHIFT)
+            m_slider->UseDefaultColors(true);
+        event.Skip();
+    });
 
     m_slider->Bind(wxEVT_SCROLL_CHANGED, &Preview::on_sliders_scroll_changed, this);
 
@@ -776,6 +784,8 @@ void Preview::update_double_slider_from_canvas(wxKeyEvent& event)
     }
     else if (key == 'S')
         m_slider->ChangeOneLayerLock();
+    else if (key == WXK_SHIFT)
+        m_slider->UseDefaultColors(false);
     else
         event.Skip();
 }

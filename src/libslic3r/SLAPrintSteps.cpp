@@ -27,7 +27,7 @@ namespace {
 
 const std::array<unsigned, slaposCount> OBJ_STEP_LEVELS = {
     10, // slaposHollowing,
-    10, // slaposDrillHolesIfHollowed
+    10, // slaposDrillHoles
     10, // slaposObjectSlice,
     20, // slaposSupportPoints,
     10, // slaposSupportTree,
@@ -39,7 +39,7 @@ std::string OBJ_STEP_LABELS(size_t idx)
 {
     switch (idx) {
     case slaposHollowing:            return L("Hollowing model");
-    case slaposDrillHoles:           return L("Drilling holes into hollowed model.");
+    case slaposDrillHoles:           return L("Drilling holes into model.");
     case slaposObjectSlice:          return L("Slicing model");
     case slaposSupportPoints:        return L("Generating support points");
     case slaposSupportTree:          return L("Generating support tree");
@@ -49,7 +49,7 @@ std::string OBJ_STEP_LABELS(size_t idx)
     }
     assert(false);
     return "Out of bounds!";
-};
+}
 
 const std::array<unsigned, slapsCount> PRINT_STEP_LEVELS = {
     10, // slapsMergeSlicesAndEval
@@ -64,12 +64,13 @@ std::string PRINT_STEP_LABELS(size_t idx)
     default:;
     }
     assert(false); return "Out of bounds!";
-};
+}
 
 }
 
 SLAPrint::Steps::Steps(SLAPrint *print)
     : m_print{print}
+    , m_rng{std::random_device{}()}
     , objcount{m_print->m_objects.size()}
     , ilhd{m_print->m_material_config.initial_layer_height.getFloat()}
     , ilh{float(ilhd)}
@@ -80,6 +81,7 @@ SLAPrint::Steps::Steps(SLAPrint *print)
 void SLAPrint::Steps::hollow_model(SLAPrintObject &po)
 {
     po.m_hollowing_data.reset();
+
     if (! po.m_config.hollowing_enable.getBool()) {
         BOOST_LOG_TRIVIAL(info) << "Skipping hollowing step!";
         return;
@@ -98,17 +100,37 @@ void SLAPrint::Steps::hollow_model(SLAPrintObject &po)
     else {
         po.m_hollowing_data.reset(new SLAPrintObject::HollowingData());
         po.m_hollowing_data->interior = *meshptr;
-        auto &hollowed_mesh = po.m_hollowing_data->hollow_mesh_with_holes;
-        hollowed_mesh = po.transformed_mesh();
-        hollowed_mesh.merge(po.m_hollowing_data->interior);
-        hollowed_mesh.require_shared_vertices();
     }
 }
 
+// Drill holes into the hollowed/original mesh.
 void SLAPrint::Steps::drill_holes(SLAPrintObject &po)
 {
-    // Drill holes into the hollowed/original mesh.
-    if (po.m_model_object->sla_drain_holes.empty()) {
+    bool needs_drilling = ! po.m_model_object->sla_drain_holes.empty();
+    bool is_hollowed = (po.m_hollowing_data && ! po.m_hollowing_data->interior.empty());
+
+    if (! is_hollowed && ! needs_drilling) {
+        // In this case we can dump any data that might have been
+        // generated on previous runs.
+        po.m_hollowing_data.reset();
+        return;
+    }
+
+    if (! po.m_hollowing_data)
+        po.m_hollowing_data.reset(new SLAPrintObject::HollowingData());
+
+    // Hollowing and/or drilling is active, m_hollowing_data is valid.
+
+    // Regenerate hollowed mesh, even if it was there already. It may contain
+    // holes that are no longer on the frontend.
+    TriangleMesh &hollowed_mesh = po.m_hollowing_data->hollow_mesh_with_holes;
+    hollowed_mesh = po.transformed_mesh();
+    if (! po.m_hollowing_data->interior.empty()) {
+        hollowed_mesh.merge(po.m_hollowing_data->interior);
+        hollowed_mesh.require_shared_vertices();
+    }
+
+    if (! needs_drilling) {
         BOOST_LOG_TRIVIAL(info) << "Drilling skipped (no holes).";
         return;
     }
@@ -116,31 +138,31 @@ void SLAPrint::Steps::drill_holes(SLAPrintObject &po)
     BOOST_LOG_TRIVIAL(info) << "Drilling drainage holes.";
     sla::DrainHoles drainholes = po.transformed_drainhole_points();
     
-    TriangleMesh holes_mesh;
-    
-    for (const sla::DrainHole &holept : drainholes)
-        holes_mesh.merge(sla::to_triangle_mesh(holept.to_mesh()));
-    
-    holes_mesh.require_shared_vertices();
-    MeshBoolean::cgal::self_union(holes_mesh); //FIXME-fix and use the cgal version
-    
-    // If there is no hollowed mesh yet, copy the original mesh.
-    if (! po.m_hollowing_data) {
-        po.m_hollowing_data.reset(new SLAPrintObject::HollowingData());
-        po.m_hollowing_data->hollow_mesh_with_holes = po.transformed_mesh();
+    std::uniform_real_distribution<float> dist(0., float(EPSILON));
+    auto holes_mesh_cgal = MeshBoolean::cgal::triangle_mesh_to_cgal({});
+    for (sla::DrainHole holept : drainholes) {
+        holept.normal += Vec3f{dist(m_rng), dist(m_rng), dist(m_rng)};
+        holept.normal.normalize();
+        holept.pos += Vec3f{dist(m_rng), dist(m_rng), dist(m_rng)};
+        TriangleMesh m = sla::to_triangle_mesh(holept.to_mesh());
+        m.require_shared_vertices();
+        auto cgal_m = MeshBoolean::cgal::triangle_mesh_to_cgal(m);
+        MeshBoolean::cgal::plus(*holes_mesh_cgal, *cgal_m);
     }
     
-    TriangleMesh &hollowed_mesh = po.m_hollowing_data->hollow_mesh_with_holes;
+    if (MeshBoolean::cgal::does_self_intersect(*holes_mesh_cgal))
+        throw std::runtime_error(L("Too much overlapping holes."));
+    
+    auto hollowed_mesh_cgal = MeshBoolean::cgal::triangle_mesh_to_cgal(hollowed_mesh);
     
     try {
-        MeshBoolean::cgal::minus(hollowed_mesh, holes_mesh);
-    } catch (const std::runtime_error &ex) {
+        MeshBoolean::cgal::minus(*hollowed_mesh_cgal, *holes_mesh_cgal);
+        hollowed_mesh = MeshBoolean::cgal::cgal_to_triangle_mesh(*hollowed_mesh_cgal);
+    } catch (const std::runtime_error &) {
         throw std::runtime_error(L(
             "Drilling holes into the mesh failed. "
             "This is usually caused by broken model. Try to fix it first."));
     }
-
-    hollowed_mesh.require_shared_vertices();
 }
 
 // The slicing will be performed on an imaginary 1D grid which starts from
@@ -198,7 +220,7 @@ void SLAPrint::Steps::slice_model(SLAPrintObject &po)
     float closing_r  = float(po.config().slice_closing_radius.value);
     auto  thr        = [this]() { m_print->throw_if_canceled(); };
     auto &slice_grid = po.m_model_height_levels;
-    slicer.slice(slice_grid, closing_r, &po.m_model_slices, thr);
+    slicer.slice(slice_grid, SlicingMode::Regular, closing_r, &po.m_model_slices, thr);
     
 //    sla::DrainHoles drainholes = po.transformed_drainhole_points();
 //    cut_drainholes(po.m_model_slices, slice_grid, closing_r, drainholes, thr);
@@ -529,8 +551,8 @@ static ClipperPolygons get_all_polygons(const SliceRecord& record, SliceOrigin o
             }
             
             sl::rotate(poly, double(instances[i].rotation));
-            sl::translate(poly, ClipperPoint{instances[i].shift(X),
-                                             instances[i].shift(Y)});
+            sl::translate(poly, ClipperPoint{instances[i].shift.x(),
+                                             instances[i].shift.y()});
             
             polygons.emplace_back(std::move(poly));
         }

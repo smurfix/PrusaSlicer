@@ -33,18 +33,37 @@ enum SelectedSlider {
     ssHigher
 };
 
-enum IconFocus {
-    ifNone,
-    ifRevert,
-    ifCog
+enum FocusedItem {
+    fiNone,
+    fiRevertIcon,
+    fiOneLayerIcon,
+    fiCogIcon,
+    fiColorBand,
+    fiActionIcon,
+    fiTick
 };
 
 enum ConflictType
 {
     ctNone,
     ctModeConflict,
-    ctMeaningless,
+    ctMeaninglessColorChange,
+    ctMeaninglessToolChange,
     ctRedundant
+};
+
+enum MouseAction
+{
+    maNone,
+    maAddMenu,                  // show "Add"  context menu for NOTexist active tick
+    maEditMenu,                 // show "Edit" context menu for exist active tick
+    maCogIconMenu,              // show context for "cog" icon
+    maForceColorEdit,           // force color editing from colored band
+    maAddTick,                  // force tick adding
+    maDeleteTick,               // force tick deleting
+    maCogIconClick,             // LeftMouseClick on "cog" icon
+    maOneLayerIconClick,        // LeftMouseClick on "one_layer" icon
+    maRevertIconClick,          // LeftMouseClick on "revert" icon
 };
 
 using t_mode = CustomGCode::Mode;
@@ -66,12 +85,14 @@ class TickCodeInfo
     std::string pause_print_msg;
     bool        m_suppress_plus     = false;
     bool        m_suppress_minus    = false;
+    bool        m_use_default_colors= false;
+    int         m_default_color_idx = 0;
 
     std::string get_color_for_tick(TickCode tick, const std::string& code, const int extruder);
 
 public:
-    std::set<TickCode> ticks {};
-    t_mode              mode = t_mode::SingleExtruder;
+    std::set<TickCode>  ticks {};
+    t_mode              mode = t_mode::Undef;
 
     bool empty() const { return ticks.empty(); }
     void set_pause_print_msg(const std::string& message) { pause_print_msg = message; }
@@ -87,12 +108,13 @@ public:
 
     // Get used extruders for tick.
     // Means all extruders(tools) which will be used during printing from current tick to the end
-    std::set<int>   get_used_extruders_for_tick(int tick, int only_extruder, double print_z) const;
+    std::set<int>   get_used_extruders_for_tick(int tick, int only_extruder, double print_z, t_mode force_mode = t_mode::Undef) const;
 
     void suppress_plus (bool suppress) { m_suppress_plus = suppress; }
     void suppress_minus(bool suppress) { m_suppress_minus = suppress; }
     bool suppressed_plus () { return m_suppress_plus; }
     bool suppressed_minus() { return m_suppress_minus; }
+    void set_default_colors(bool default_colors_on)  { m_use_default_colors = default_colors_on; }
 };
 
 
@@ -180,13 +202,7 @@ public:
 
     void    SetManipulationMode(t_mode mode)    { m_mode = mode; }
     t_mode  GetManipulationMode() const         { return m_mode; }
-    void    SetModeAndOnlyExtruder(const bool is_one_extruder_printed_model, const int only_extruder)
-    {
-        m_mode = !is_one_extruder_printed_model ? t_mode::MultiExtruder :
-                 only_extruder < 0              ? t_mode::SingleExtruder :
-                                                  t_mode::MultiAsSingle;
-        m_only_extruder = only_extruder;
-    }
+    void    SetModeAndOnlyExtruder(const bool is_one_extruder_printed_model, const int only_extruder);
 
     bool is_horizontal() const      { return m_style == wxSL_HORIZONTAL; }
     bool is_one_layer() const       { return m_is_one_layer; }
@@ -200,6 +216,7 @@ public:
     void OnLeftUp(wxMouseEvent& event);
     void OnEnterWin(wxMouseEvent& event) { enter_window(event, true); }
     void OnLeaveWin(wxMouseEvent& event) { enter_window(event, false); }
+    void UseDefaultColors(bool def_colors_on)   { m_ticks.set_default_colors(def_colors_on); }
     void OnWheel(wxMouseEvent& event);
     void OnKeyDown(wxKeyEvent &event);
     void OnKeyUp(wxKeyEvent &event);
@@ -212,8 +229,15 @@ public:
     void add_current_tick(bool call_from_keyboard = false);
     // delete current tick, when press "-"
     void delete_current_tick();
-    void edit_tick();
+    void edit_tick(int tick = -1);
+    void switch_one_layer_mode();
+    void discard_all_thicks();
+    void move_current_thumb_to_pos(wxPoint pos);
     void edit_extruder_sequence();
+    void jump_to_print_z();
+    void show_add_context_menu();
+    void show_edit_context_menu();
+    void show_cog_icon_context_menu();
 
     ExtrudersSequence m_extruders_sequence;
 
@@ -232,6 +256,8 @@ protected:
     void    draw_cog_icon(wxDC &dc);
     void    draw_thumb_item(wxDC& dc, const wxPoint& pos, const SelectedSlider& selection);
     void    draw_info_line_with_icon(wxDC& dc, const wxPoint& pos, SelectedSlider selection);
+    void    draw_tick_on_mouse_position(wxDC &dc);
+    void    draw_tick_text(wxDC& dc, const wxPoint& pos, int tick, bool right_side = true) const;
     void    draw_thumb_text(wxDC& dc, const wxPoint& pos, const SelectedSlider& selection) const;
 
     void    update_thumb_rect(const wxCoord& begin_x, const wxCoord& begin_y, const SelectedSlider& selection);
@@ -247,17 +273,20 @@ private:
     int     get_tick_near_point(const wxPoint& pt);
 
     double      get_scroll_step();
-    wxString    get_label(const SelectedSlider& selection) const;
+    wxString    get_label(int tick) const;
     void        get_lower_and_higher_position(int& lower_pos, int& higher_pos);
     int         get_value_from_position(const wxCoord x, const wxCoord y);
+    int         get_value_from_position(const wxPoint pos) { return get_value_from_position(pos.x, pos.y); }
     wxCoord     get_position_from_value(const int value);
     wxSize      get_size();
     void        get_size(int *w, int *h);
     double      get_double_value(const SelectedSlider& selection);
-    wxString    get_tooltip(IconFocus icon_focus);
+    wxString    get_tooltip(int tick = -1);
+    int         get_edited_tick_for_position(wxPoint pos, const std::string& gcode = ColorChangeCode);
 
     std::string get_color_for_tool_change_tick(std::set<TickCode>::const_iterator it) const;
     std::string get_color_for_color_change_tick(std::set<TickCode>::const_iterator it) const;
+    wxRect      get_colored_band_rect();
 
     // Get active extruders for tick. 
     // Means one current extruder for not existing tick OR 
@@ -294,17 +323,15 @@ private:
     bool        m_is_right_down = false;
     bool        m_is_one_layer = false;
     bool        m_is_focused = false;
-    bool        m_is_action_icon_focesed = false;
-    bool        m_is_one_layer_icon_focesed = false;
     bool        m_is_enabled_tick_manipulation = true;
-    bool        m_show_context_menu = false;
-    bool        m_show_edit_menu = false;
-    bool        m_force_edit_extruder_sequence = false;
     bool        m_force_mode_apply = true;
-    bool        m_force_add_tick    = false;
-    bool        m_force_delete_tick = false;
+
     t_mode      m_mode = t_mode::SingleExtruder;
     int         m_only_extruder = -1;
+
+    MouseAction m_mouse = maNone;
+    FocusedItem m_focus = fiNone;
+    wxPoint     m_moving_pos = wxDefaultPosition;
 
     wxRect      m_rect_lower_thumb;
     wxRect      m_rect_higher_thumb;
