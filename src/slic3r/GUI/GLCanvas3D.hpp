@@ -3,6 +3,9 @@
 
 #include <stddef.h>
 #include <memory>
+#if ENABLE_CANVAS_DELAYED_TOOLTIP_USING_IMGUI
+#include <chrono>
+#endif // ENABLE_CANVAS_DELAYED_TOOLTIP_USING_IMGUI
 
 #include "3DScene.hpp"
 #include "GLToolbar.hpp"
@@ -375,7 +378,6 @@ private:
     };
 #endif // ENABLE_RENDER_STATISTICS
 
-#if ENABLE_SHOW_SCENE_LABELS
     class Labels
     {
         bool m_enabled{ false };
@@ -389,7 +391,30 @@ private:
         bool is_shown() const { return m_shown; }
         void render(const std::vector<const ModelInstance*>& sorted_instances) const;
     };
-#endif // ENABLE_SHOW_SCENE_LABELS
+
+#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
+    class Tooltip
+    {
+        std::string m_text;
+#if ENABLE_CANVAS_DELAYED_TOOLTIP_USING_IMGUI
+        std::chrono::steady_clock::time_point m_start_time;
+#endif // ENABLE_CANVAS_DELAYED_TOOLTIP_USING_IMGUI
+        // Indicator that the mouse is inside an ImGUI dialog, therefore the tooltip should be suppressed.
+        bool 		m_in_imgui = false;
+
+    public:
+        bool is_empty() const { return m_text.empty(); }
+#if ENABLE_CANVAS_DELAYED_TOOLTIP_USING_IMGUI
+        void set_text(const std::string& text);
+        void render(const Vec2d& mouse_position, GLCanvas3D& canvas) const;
+#else
+        void set_text(const std::string& text) { m_text = text; }
+        void render(const Vec2d& mouse_position) const;
+#endif // ENABLE_CANVAS_DELAYED_TOOLTIP_USING_IMGUI
+        // Indicates that the mouse is inside an ImGUI dialog, therefore the tooltip should be suppressed.
+        void set_in_imgui(bool b) { m_in_imgui = b; }
+    };
+#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 
 public:
     enum ECursorType : unsigned char
@@ -468,9 +493,10 @@ private:
     mutable int m_imgui_undo_redo_hovered_pos{ -1 };
     int m_selected_extruder;
 
-#if ENABLE_SHOW_SCENE_LABELS
     Labels m_labels;
-#endif // ENABLE_SHOW_SCENE_LABELS
+#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
+    mutable Tooltip m_tooltip;
+#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 
 public:
     GLCanvas3D(wxGLCanvas* canvas, Bed3D& bed, Camera& camera, GLToolbar& view_toolbar);
@@ -487,9 +513,7 @@ public:
     void set_as_dirty();
 
     unsigned int get_volumes_count() const;
-#if ENABLE_SHOW_SCENE_LABELS
     const GLVolumeCollection& get_volumes() const { return m_volumes; }
-#endif // ENABLE_SHOW_SCENE_LABELS
     void reset_volumes();
     int check_volumes_outside_state() const;
 
@@ -501,9 +525,7 @@ public:
     void set_config(const DynamicPrintConfig* config);
     void set_process(BackgroundSlicingProcess* process);
     void set_model(Model* model);
-#if ENABLE_SHOW_SCENE_LABELS
     const Model* get_model() const { return m_model; }
-#endif // ENABLE_SHOW_SCENE_LABELS
 
     const Selection& get_selection() const { return m_selection; }
     Selection& get_selection() { return m_selection; }
@@ -551,9 +573,7 @@ public:
     void enable_main_toolbar(bool enable);
     void enable_undoredo_toolbar(bool enable);
     void enable_dynamic_background(bool enable);
-#if ENABLE_SHOW_SCENE_LABELS
     void enable_labels(bool enable) { m_labels.enable(enable); }
-#endif // ENABLE_SHOW_SCENE_LABELS
     void allow_multisample(bool allow);
 
     void zoom_to_bed();
@@ -675,10 +695,8 @@ public:
 
     void mouse_up_cleanup();
 
-#if ENABLE_SHOW_SCENE_LABELS
     bool are_labels_shown() const { return m_labels.is_shown(); }
     void show_labels(bool show) { m_labels.show(show); }
-#endif // ENABLE_SHOW_SCENE_LABELS
 
 private:
     bool _is_shown_on_screen() const;

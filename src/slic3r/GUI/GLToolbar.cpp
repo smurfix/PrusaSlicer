@@ -86,7 +86,6 @@ bool GLToolbarItem::update_enabled_state()
 
 void GLToolbarItem::render(unsigned int tex_id, float left, float right, float bottom, float top, unsigned int tex_width, unsigned int tex_height, unsigned int icon_size) const
 {
-#if ENABLE_MODIFIED_TOOLBAR_TEXTURES
     auto uvs = [this](unsigned int tex_width, unsigned int tex_height, unsigned int icon_size) ->GLTexture::Quad_UVs
     {
         assert((tex_width != 0) && (tex_height != 0));
@@ -112,9 +111,6 @@ void GLToolbarItem::render(unsigned int tex_id, float left, float right, float b
     };
 
     GLTexture::render_sub_texture(tex_id, left, right, bottom, top, uvs(tex_width, tex_height, icon_size));
-#else
-    GLTexture::render_sub_texture(tex_id, left, right, bottom, top, get_uvs(tex_width, tex_height, icon_size));
-#endif // ENABLE_MODIFIED_TOOLBAR_TEXTURES
 
     if (is_pressed())
     {
@@ -124,29 +120,6 @@ void GLToolbarItem::render(unsigned int tex_id, float left, float right, float b
             m_data.right.render_callback(left, right, bottom, top);
     }
 }
-
-#if !ENABLE_MODIFIED_TOOLBAR_TEXTURES
-GLTexture::Quad_UVs GLToolbarItem::get_uvs(unsigned int tex_width, unsigned int tex_height, unsigned int icon_size) const
-{
-    GLTexture::Quad_UVs uvs;
-
-    float inv_tex_width = (tex_width != 0) ? 1.0f / (float)tex_width : 0.0f;
-    float inv_tex_height = (tex_height != 0) ? 1.0f / (float)tex_height : 0.0f;
-
-    float scaled_icon_width = (float)icon_size * inv_tex_width;
-    float scaled_icon_height = (float)icon_size * inv_tex_height;
-    float left = (float)m_state * scaled_icon_width;
-    float right = left + scaled_icon_width;
-    float top = (float)m_data.sprite_id * scaled_icon_height;
-    float bottom = top + scaled_icon_height;
-    uvs.left_top = { left, top };
-    uvs.left_bottom = { left, bottom };
-    uvs.right_bottom = { right, bottom };
-    uvs.right_top = { right, top };
-
-    return uvs;
-}
-#endif // !ENABLE_MODIFIED_TOOLBAR_TEXTURES
 
 BackgroundTexture::Metadata::Metadata()
     : filename("")
@@ -448,14 +421,60 @@ bool GLToolbar::on_mouse(wxMouseEvent& evt, GLCanvas3D& parent)
     // mouse anywhere
     if (!evt.Dragging() && !evt.Leaving() && !evt.Entering() && (m_mouse_capture.parent != nullptr))
     {
-        if (m_mouse_capture.any() && (evt.LeftUp() || evt.MiddleUp() || evt.RightUp()))
+        if (m_mouse_capture.any() && (evt.LeftUp() || evt.MiddleUp() || evt.RightUp())) {
             // prevents loosing selection into the scene if mouse down was done inside the toolbar and mouse up was down outside it,
             // as when switching between views
-            processed = true;
-
+            m_mouse_capture.reset();
+            if (contains_mouse(mouse_pos, parent) == -1)
+                // mouse is outside the toolbar
+                m_tooltip.clear();
+            return true;
+        }
         m_mouse_capture.reset();
     }
 
+#if ENABLE_MODIFIED_TOOLBAR_MOUSE_EVENT_HANDLING
+    if (evt.Moving())
+        m_tooltip = update_hover_state(mouse_pos, parent);
+    else if (evt.LeftUp())
+    {
+        if (m_mouse_capture.left)
+        {
+            processed = true;
+            m_mouse_capture.left = false;
+        }
+        else
+            return false;
+    }
+    else if (evt.MiddleUp())
+    {
+        if (m_mouse_capture.middle)
+        {
+            processed = true;
+            m_mouse_capture.middle = false;
+        }
+        else
+            return false;
+    }
+    else if (evt.RightUp())
+    {
+        if (m_mouse_capture.right)
+        {
+            processed = true;
+            m_mouse_capture.right = false;
+        }
+        else
+            return false;
+    }
+    else if (evt.Dragging())
+    {
+        if (m_mouse_capture.any())
+            // if the button down was done on this toolbar, prevent from dragging into the scene
+            processed = true;
+        else
+            return false;
+    }
+#else
     if (evt.Moving())
         m_tooltip = update_hover_state(mouse_pos, parent);
     else if (evt.LeftUp())
@@ -467,6 +486,7 @@ bool GLToolbar::on_mouse(wxMouseEvent& evt, GLCanvas3D& parent)
     else if (evt.Dragging() && m_mouse_capture.any())
         // if the button down was done on this toolbar, prevent from dragging into the scene
         processed = true;
+#endif // ENABLE_MODIFIED_TOOLBAR_MOUSE_EVENT_HANDLING
 
     int item_id = contains_mouse(mouse_pos, parent);
     if (item_id == -1)
@@ -506,8 +526,10 @@ bool GLToolbar::on_mouse(wxMouseEvent& evt, GLCanvas3D& parent)
                 parent.set_as_dirty();
             }
         }
+#if !ENABLE_MODIFIED_TOOLBAR_MOUSE_EVENT_HANDLING
         else if (evt.LeftUp())
             processed = true;
+#endif // !ENABLE_MODIFIED_TOOLBAR_MOUSE_EVENT_HANDLING
     }
 
     return processed;

@@ -3,6 +3,7 @@
 
 #include "GLCanvas3D.hpp"
 #include "GUI_App.hpp"
+#include "GUI.hpp"
 #include "GUI_ObjectManipulation.hpp"
 #include "GUI_ObjectList.hpp"
 #include "Gizmos/GLGizmoBase.hpp"
@@ -1470,9 +1471,10 @@ void Selection::toggle_instance_printable_state()
             ModelInstance* instance = model_object->instances[instance_idx];
             const bool printable = !instance->printable;
 
-            wxString snapshot_text = model_object->instances.size() == 1 ? wxString::Format("%s %s",
-                                     printable ? _(L("Set Printable")) : _(L("Set Unprintable")), model_object->name) :
-                                     printable ? _(L("Set Printable Instance")) : _(L("Set Unprintable Instance"));
+            wxString snapshot_text = model_object->instances.size() == 1 ? from_u8((boost::format("%1% %2%")
+                                         % (printable ? _utf8(L("Set Printable")) : _utf8(L("Set Unprintable")))
+                                         % model_object->name).str()) :
+                                     (printable ? _(L("Set Printable Instance")) : _(L("Set Unprintable Instance")));
             wxGetApp().plater()->take_snapshot(snapshot_text);
 
             instance->printable = printable;
@@ -2005,11 +2007,7 @@ void Selection::render_sidebar_layers_hints(const std::string& sidebar_field) co
     const float max_y = box.max(1) + Margin;
 
     // view dependend order of rendering to keep correct transparency
-#if ENABLE_6DOF_CAMERA
     bool camera_on_top = wxGetApp().plater()->get_camera().is_looking_downward();
-#else
-    bool camera_on_top = wxGetApp().plater()->get_camera().get_theta() <= 90.0f;
-#endif // ENABLE_6DOF_CAMERA
     float z1 = camera_on_top ? min_z : max_z;
     float z2 = camera_on_top ? max_z : min_z;
 

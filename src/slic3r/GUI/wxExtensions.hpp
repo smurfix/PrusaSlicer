@@ -45,6 +45,7 @@ class wxDialog;
 void    edit_tooltip(wxString& tooltip);
 void    msw_buttons_rescale(wxDialog* dlg, const int em_unit, const std::vector<int>& btn_ids);
 int     em_unit(wxWindow* win);
+int     mode_icon_px_size();
 
 wxBitmap create_scaled_bitmap(const std::string& bmp_name, wxWindow *win = nullptr, 
     const int px_cnt = 16, const bool grayscale = false);
@@ -255,9 +256,9 @@ public:
     void    msw_rescale();
 
 private:
-    wxWindow*       m_parent;
-    std::string     m_current_icon_name = "";
-    std::string     m_disabled_icon_name = "";
+    wxWindow*       m_parent { nullptr };
+    std::string     m_current_icon_name;
+    std::string     m_disabled_icon_name;
     int             m_width {-1}; // should be multiplied to em_unit
     int             m_height{-1}; // should be multiplied to em_unit
 
@@ -280,7 +281,16 @@ public:
         const wxString&     mode = wxEmptyString,
         const wxSize&       size = wxDefaultSize,
         const wxPoint&      pos = wxDefaultPosition);
+
+    ModeButton(
+        wxWindow*           parent,
+        const wxString&     mode = wxEmptyString,
+        const std::string&  icon_name = "",
+        int                 px_cnt = 16);
+
     ~ModeButton() {}
+
+    void Init(const wxString& mode);
 
     void    OnButton(wxCommandEvent& event);
     void    OnEnterBtn(wxMouseEvent& event) { focus_button(true); event.Skip(); }

@@ -486,6 +486,15 @@ int em_unit(wxWindow* win)
     return Slic3r::GUI::wxGetApp().em_unit();
 }
 
+int mode_icon_px_size()
+{
+#ifdef __APPLE__
+    return 10;
+#else
+    return 12;
+#endif
+}
+
 // win is used to get a correct em_unit value
 // It's important for bitmaps of dialogs.
 // if win == nullptr, em_unit value of MainFrame will be used
@@ -534,7 +543,7 @@ std::vector<wxBitmap*> get_extruder_color_icons(bool thin_icon/* = false*/)
      * and scale them in respect to em_unit value
      */
     const double em = Slic3r::GUI::wxGetApp().em_unit();
-    const int icon_width = lround((thin_icon ? 1 : 3.2) * em);
+    const int icon_width = lround((thin_icon ? 1.6 : 3.2) * em);
     const int icon_height = lround(1.6 * em);
 
     for (const std::string& color : colors)
@@ -594,7 +603,9 @@ void apply_extruder_selector(wxBitmapComboBox** ctrl,
             ++i;
         }
 
-        (*ctrl)->Append(use_full_item_name ? wxString::Format("%s %d", str, i) : std::to_string(i), *bmp);
+        (*ctrl)->Append(use_full_item_name
+                        ? Slic3r::GUI::from_u8((boost::format("%1% %2%") % str % i).str())
+                        : wxString::Format("%d", i), *bmp);
         ++i;
     }
     (*ctrl)->SetSelection(0);
@@ -677,8 +688,23 @@ ModeButton::ModeButton( wxWindow *          parent,
                         const wxPoint&      pos         /* = wxDefaultPosition*/) :
     ScalableButton(parent, id, icon_name, mode, size, pos, wxBU_EXACTFIT)
 {
-    m_tt_focused = wxString::Format(_(L("Switch to the %s mode")), mode);
-    m_tt_selected = wxString::Format(_(L("Current mode is %s")), mode);
+    Init(mode);
+}
+
+ModeButton::ModeButton( wxWindow*           parent,
+                        const wxString&     mode/* = wxEmptyString*/,
+                        const std::string&  icon_name/* = ""*/,
+                        int                 px_cnt/* = 16*/) :
+    ScalableButton(parent, wxID_ANY, ScalableBitmap(parent, icon_name, px_cnt), mode, wxBU_EXACTFIT)
+{
+    Init(mode);
+}
+
+void ModeButton::Init(const wxString &mode)
+{
+    std::string mode_str = std::string(mode.ToUTF8());
+    m_tt_focused  = Slic3r::GUI::from_u8((boost::format(_utf8(L("Switch to the %s mode"))) % mode_str).str());
+    m_tt_selected = Slic3r::GUI::from_u8((boost::format(_utf8(L("Current mode is %s"))) % mode_str).str());
 
     SetBitmapMargins(3, 0);
 
@@ -739,7 +765,7 @@ ModeSizer::ModeSizer(wxWindow *parent, int hgap/* = 0*/) :
     
     m_mode_btns.reserve(3);
     for (const auto& button : buttons) {
-        m_mode_btns.push_back(new ModeButton(parent, wxID_ANY, button.second, button.first));
+        m_mode_btns.push_back(new ModeButton(parent, button.first, button.second, mode_icon_px_size()));
 
         m_mode_btns.back()->Bind(wxEVT_BUTTON, std::bind(modebtnfn, std::placeholders::_1, int(m_mode_btns.size() - 1)));
         Add(m_mode_btns.back());
