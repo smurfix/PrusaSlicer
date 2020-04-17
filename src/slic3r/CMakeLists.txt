@@ -22,6 +22,7 @@ set(SLIC3R_GUI_SOURCES
     GUI/ConfigSnapshotDialog.hpp
     GUI/3DScene.cpp
     GUI/3DScene.hpp
+    GUI/format.hpp
     GUI/GLShader.cpp
     GUI/GLShader.hpp    
     GUI/GLCanvas3D.hpp
@@ -30,9 +31,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/GLCanvas3DManager.cpp
     GUI/Selection.hpp
     GUI/Selection.cpp    
-    GUI/Gizmos/GLGizmos.hpp
     GUI/Gizmos/GLGizmosManager.cpp
     GUI/Gizmos/GLGizmosManager.hpp
+    GUI/Gizmos/GLGizmosCommon.cpp
+    GUI/Gizmos/GLGizmosCommon.hpp
     GUI/Gizmos/GLGizmoBase.cpp
     GUI/Gizmos/GLGizmoBase.hpp
     GUI/Gizmos/GLGizmoMove.cpp
@@ -43,6 +45,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Gizmos/GLGizmoScale.hpp
     GUI/Gizmos/GLGizmoSlaSupports.cpp
     GUI/Gizmos/GLGizmoSlaSupports.hpp
+    GUI/Gizmos/GLGizmoFdmSupports.cpp
+    GUI/Gizmos/GLGizmoFdmSupports.hpp
     GUI/Gizmos/GLGizmoFlatten.cpp
     GUI/Gizmos/GLGizmoFlatten.hpp
     GUI/Gizmos/GLGizmoCut.cpp
@@ -196,6 +200,10 @@ target_link_libraries(libslic3r_gui libslic3r avrdude cereal imgui GLEW::GLEW Op
 if(APPLE)
     target_link_libraries(libslic3r_gui ${DISKARBITRATION_LIBRARY})
 endif()
+
+if (SLIC3R_STATIC AND UNIX AND NOT APPLE)
+    target_compile_definitions(libslic3r_gui PRIVATE OPENSSL_CERT_OVERRIDE)
+endif ()
 
 if (SLIC3R_PCH AND NOT SLIC3R_SYNTAXONLY)
     add_precompiled_header(libslic3r_gui pchheader.hpp FORCEINCLUDE)

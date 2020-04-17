@@ -145,6 +145,9 @@ void KBShortcutsDialog::fill_shortcuts()
         // View
         { "0-6", L("Camera view") },
         { "E", L("Show/Hide object/instance labels") },
+#if ENABLE_SLOPE_RENDERING
+        { "D", L("Turn On/Off facets' slope rendering") },
+#endif // ENABLE_SLOPE_RENDERING
         // Configuration
         { ctrl + "P", L("Preferences") },
         // Help
@@ -182,10 +185,12 @@ void KBShortcutsDialog::fill_shortcuts()
         { "Z", L("Zoom to selected object\nor all objects in scene, if none selected") },
         { "I", L("Zoom in") },
         { "O", L("Zoom out") },
-        { ctrl + "M", L("Show/Hide 3Dconnexion devices settings dialog") }
+#ifdef __linux__
+        { ctrl + "M", L("Show/Hide 3Dconnexion devices settings dialog") },
+#endif // __linux__
 #if ENABLE_RENDER_PICKING_PASS
         // Don't localize debugging texts.
-        , { "T", "Toggle picking pass texture rendering on/off" }
+        { "T", "Toggle picking pass texture rendering on/off" },
 #endif // ENABLE_RENDER_PICKING_PASS
     };
 
