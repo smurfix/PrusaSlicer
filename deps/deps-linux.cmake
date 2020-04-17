@@ -126,8 +126,8 @@ ExternalProject_Add(dep_wxwidgets
         --with-zlib
         --with-expat=builtin
         --disable-precomp-headers
-        --enable-debug_info
-        --enable-debug_gdb
+        --disable-debug_info
+        --disable-debug_gdb
         --disable-debug
         --disable-debug_flag
     BUILD_COMMAND make "-j${NPROC}" && make -C locale allmo
