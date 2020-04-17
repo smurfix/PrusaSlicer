@@ -1,3 +1,10 @@
+slic3r-prusa (2.2.0.smurf9-2) unstable; urgency=medium
+
+  * Merge current master
+  * Merge no-datestamp change
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Fri, 17 Apr 2020 14:11:34 +0200
+
 slic3r-prusa (2.2.0.smurf8-1) unstable; urgency=medium
 
   * Merge Release 2.2.0
