@@ -65,6 +65,8 @@ Recommends: libclass-xsaccessor-perl,
             libpdf-api2-perl,
             libio-all-perl,
             libsvg-perl
+Conflicts: prusa-slicer
+Replaces: prusa-slicer
 Description: G-code generator for 3D printers
  Slic3r converts digital 3D models into printing instructions (G-code)
  for your 3D printer. It cuts the model into horizontal slices (layers),
