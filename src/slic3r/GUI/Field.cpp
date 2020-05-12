@@ -9,6 +9,7 @@
 #include <regex>
 #include <wx/numformatter.h>
 #include <wx/tooltip.h>
+#include <wx/notebook.h>
 #include <boost/algorithm/string/predicate.hpp>
 
 #ifdef __WXOSX__
@@ -57,6 +58,8 @@ void Field::PostInitialize()
     m_Undo_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent) { on_back_to_initial_value(); }));
 	m_Undo_to_sys_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent) { on_back_to_sys_value(); }));
 
+	m_blinking_bmp		= new BlinkingBitmap(m_parent);
+
 	switch (m_opt.type)
 	{
 	case coPercents:
@@ -77,6 +80,29 @@ void Field::PostInitialize()
     m_em_unit = em_unit(m_parent);
 
 	BUILD();
+
+	// For the mode, when settings are in non-modal dialog, neither dialog nor tabpanel doesn't receive wxEVT_KEY_UP event, when some field is selected.
+	// So, like a workaround check wxEVT_KEY_UP event for the Filed and switch between tabs if Ctrl+(1-4) was pressed 
+	if (getWindow())
+		getWindow()->Bind(wxEVT_KEY_UP, [](wxKeyEvent& evt) {
+		    if ((evt.GetModifiers() & wxMOD_CONTROL) != 0) {
+			    int tab_id = -1;
+			    switch (evt.GetKeyCode()) {
+			    case '1': { tab_id = 0; break; }
+			    case '2': { tab_id = 1; break; }
+				case '3': { tab_id = 2; break; }
+				case '4': { tab_id = 3; break; }
+			    default: break;
+			    }
+			    if (tab_id >= 0)
+					wxGetApp().mainframe->select_tab(tab_id);
+				if (tab_id > 0)
+					// tab panel should be focused for correct navigation between tabs
+				    wxGetApp().tab_panel()->SetFocus();
+		    }
+			    
+		    evt.Skip();
+	    });
 }
 
 // Values of width to alignments of fields
@@ -395,7 +421,7 @@ void TextCtrl::BUILD() {
 		bKilledFocus = false;
 #endif // __WXOSX__
 	}), temp->GetId());
-
+/*
 	// select all text using Ctrl+A
 	temp->Bind(wxEVT_CHAR, ([temp](wxKeyEvent& event)
 	{
@@ -403,7 +429,7 @@ void TextCtrl::BUILD() {
 			temp->SetSelection(-1, -1); //select all
 		event.Skip();
 	}));
-
+*/
     // recast as a wxWindow to fit the calling convention
     window = dynamic_cast<wxWindow*>(temp);
 }	
@@ -943,7 +969,7 @@ void Choice::set_value(const boost::any& value, bool change_event)
 	}
 	case coEnum: {
 		int val = boost::any_cast<int>(value);
-		if (m_opt_id == "top_fill_pattern" || m_opt_id == "bottom_fill_pattern")
+		if (m_opt_id == "top_fill_pattern" || m_opt_id == "bottom_fill_pattern" || m_opt_id == "fill_pattern")
 		{
 			if (!m_opt.enum_values.empty()) {
 				std::string key;
@@ -1013,7 +1039,7 @@ boost::any& Choice::get_value()
 	if (m_opt.type == coEnum)
 	{
 		int ret_enum = field->GetSelection(); 
-		if (m_opt_id == "top_fill_pattern" || m_opt_id == "bottom_fill_pattern")
+		if (m_opt_id == "top_fill_pattern" || m_opt_id == "bottom_fill_pattern" || m_opt_id == "fill_pattern")
 		{
 			if (!m_opt.enum_values.empty()) {
 				std::string key = m_opt.enum_values[ret_enum];
@@ -1025,8 +1051,8 @@ boost::any& Choice::get_value()
 			else
 				m_value = static_cast<InfillPattern>(0);
 		}
-		if (m_opt_id.compare("fill_pattern") == 0)
-			m_value = static_cast<InfillPattern>(ret_enum);
+		else if (m_opt_id.compare("ironing_type") == 0)
+			m_value = static_cast<IroningType>(ret_enum);
 		else if (m_opt_id.compare("gcode_flavor") == 0)
 			m_value = static_cast<GCodeFlavor>(ret_enum);
 		else if (m_opt_id.compare("support_material_pattern") == 0)

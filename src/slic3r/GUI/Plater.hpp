@@ -9,9 +9,12 @@
 #include <wx/bmpcbox.h>
 
 #include "Preset.hpp"
+#include "Selection.hpp"
 
 #include "libslic3r/BoundingBox.hpp"
+#include "Jobs/Job.hpp"
 #include "wxExtensions.hpp"
+#include "Search.hpp"
 
 class wxButton;
 class ScalableButton;
@@ -42,10 +45,8 @@ class ObjectList;
 class GLCanvas3D;
 class Mouse3DController;
 struct Camera;
-#if ENABLE_NON_STATIC_CANVAS_MANAGER
 class Bed3D;
 class GLToolbar;
-#endif // ENABLE_NON_STATIC_CANVAS_MANAGER
 
 using t_optgroups = std::vector <std::shared_ptr<ConfigOptionsGroup>>;
 
@@ -104,6 +105,8 @@ public:
     void update_mode_sizer() const;
     void update_reslice_btn_tooltip() const;
     void msw_rescale();
+    void search();
+    void jump_to_option(size_t selected);
 
     ObjectManipulation*     obj_manipul();
     ObjectList*             obj_list();
@@ -127,8 +130,14 @@ public:
 	bool                    show_export_removable(bool show) const;
     bool                    is_multifilament();
     void                    update_mode();
+    bool                    is_collapsed();
+    void                    collapse(bool collapse);
+    void                    update_searcher();
 
-    std::vector<PresetComboBox*>& combos_filament();
+    std::vector<PresetComboBox*>&   combos_filament();
+    Search::OptionsSearcher&        get_searcher();
+    std::string&                    get_search_line();
+
 private:
     struct priv;
     std::unique_ptr<priv> p;
@@ -157,6 +166,7 @@ public:
     void load_project();
     void load_project(const wxString& filename);
     void add_model();
+    void import_sl1_archive();
     void extract_config_from_project();
 
     std::vector<size_t> load_files(const std::vector<boost::filesystem::path>& input_files, bool load_model = true, bool load_config = true);
@@ -174,6 +184,9 @@ public:
 
     bool are_view3D_labels_shown() const;
     void show_view3D_labels(bool show);
+
+    bool is_sidebar_collapsed() const;
+    void collapse_sidebar(bool show);
 
 #if ENABLE_SLOPE_RENDERING
     bool is_view3D_slope_shown() const;
@@ -230,6 +243,7 @@ public:
     void redo_to(int selection);
     bool undo_redo_string_getter(const bool is_undo, int idx, const char** out_text);
     void undo_redo_topmost_string_getter(const bool is_undo, std::string& out_text);
+    bool search_string_getter(int idx, const char** label, const char** tooltip);
     // For the memory statistics. 
     const Slic3r::UndoRedo::Stack& undo_redo_stack_main() const;
     // Enter / leave the Gizmos specific Undo / Redo stack. To be used by the SLA support point editing gizmo.
@@ -252,24 +266,28 @@ public:
     void set_project_filename(const wxString& filename);
 
     bool is_export_gcode_scheduled() const;
-
+    
+    const Selection& get_selection() const;
     int get_selected_object_idx();
     bool is_single_full_object_selection() const;
     GLCanvas3D* canvas3D();
     GLCanvas3D* get_current_canvas3D();
     BoundingBoxf bed_shape_bb() const;
+    
+    void arrange();
+    void find_new_position(const ModelInstancePtrs  &instances, coord_t min_d);
 
     void set_current_canvas_as_dirty();
-#if ENABLE_NON_STATIC_CANVAS_MANAGER
     void unbind_canvas_event_handlers();
     void reset_canvas_volumes();
-#endif // ENABLE_NON_STATIC_CANVAS_MANAGER
 
     PrinterTechnology   printer_technology() const;
+    const DynamicPrintConfig * config() const;
     void                set_printer_technology(PrinterTechnology printer_technology);
 
     void copy_selection_to_clipboard();
     void paste_from_clipboard();
+    void search(bool plater_is_active);
 
     bool can_delete() const;
     bool can_delete_all() const;
@@ -294,13 +312,11 @@ public:
     const Camera& get_camera() const;
     Camera& get_camera();
 
-#if ENABLE_NON_STATIC_CANVAS_MANAGER
     const Bed3D& get_bed() const;
     Bed3D& get_bed();
 
     const GLToolbar& get_view_toolbar() const;
     GLToolbar& get_view_toolbar();
-#endif // ENABLE_NON_STATIC_CANVAS_MANAGER
 
     const Mouse3DController& get_mouse3d_controller() const;
     Mouse3DController& get_mouse3d_controller();
@@ -371,6 +387,7 @@ private:
     bool m_was_scheduled;
 };
 
-}}
+} // namespace GUI
+} // namespace Slic3r
 
 #endif

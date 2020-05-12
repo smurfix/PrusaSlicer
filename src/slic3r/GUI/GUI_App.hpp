@@ -7,9 +7,7 @@
 #include "MainFrame.hpp"
 #include "ImGuiWrapper.hpp"
 #include "ConfigWizard.hpp"
-#if ENABLE_NON_STATIC_CANVAS_MANAGER
-#include "GLCanvas3DManager.hpp"
-#endif // ENABLE_NON_STATIC_CANVAS_MANAGER
+#include "OpenGLManager.hpp"
 
 #include <wx/app.h>
 #include <wx/colour.h>
@@ -35,6 +33,7 @@ class PrintHostJobQueue;
 
 namespace GUI{
 class RemovableDriveManager;
+class OtherInstanceMessageHandler;
 enum FileType
 {
     FT_STL,
@@ -99,16 +98,14 @@ class GUI_App : public wxApp
     // Best translation language, provided by Windows or OSX, owned by wxWidgets.
     const wxLanguageInfo		 *m_language_info_best   = nullptr;
 
-#if ENABLE_NON_STATIC_CANVAS_MANAGER
-    GLCanvas3DManager m_canvas_mgr;
-#endif // ENABLE_NON_STATIC_CANVAS_MANAGER
+    OpenGLManager m_opengl_mgr;
 
     std::unique_ptr<RemovableDriveManager> m_removable_drive_manager;
 
     std::unique_ptr<ImGuiWrapper> m_imgui;
     std::unique_ptr<PrintHostJobQueue> m_printhost_job_queue;
     ConfigWizard* m_wizard;    // Managed by wxWindow tree
-
+	std::unique_ptr <OtherInstanceMessageHandler> m_other_instance_message_handler;
 public:
     bool            OnInit() override;
     bool            initialized() const { return m_initialized; }
@@ -116,11 +113,9 @@ public:
     GUI_App();
     ~GUI_App() override;
 
-#if ENABLE_NON_STATIC_CANVAS_MANAGER
     static std::string get_gl_info(bool format_as_html, bool extensions);
     wxGLContext* init_glcontext(wxGLCanvas& canvas);
     bool init_opengl();
-#endif // ENABLE_NON_STATIC_CANVAS_MANAGER
 
     static unsigned get_colour_approx_luma(const wxColour &colour);
     static bool     dark_mode();
@@ -141,7 +136,7 @@ public:
     int             em_unit() const         { return m_em_unit; }
     float           toolbar_icon_scale(const bool is_limited = false) const;
 
-    void            recreate_GUI();
+    void            recreate_GUI(const wxString& message);
     void            system_info();
     void            keyboard_shortcuts();
     void            load_project(wxWindow *parent, wxString& input_file) const;
@@ -167,6 +162,7 @@ public:
     wxString        current_language_code() const { return m_wxLocale->GetCanonicalName(); }
 	// Translate the language code to a code, for which Prusa Research maintains translations. Defaults to "en_US".
     wxString 		current_language_code_safe() const;
+    bool            is_localized() const { return m_wxLocale->GetLocale() != "English"; }
 
     virtual bool OnExceptionInMainLoop() override;
 
@@ -196,6 +192,7 @@ public:
     std::vector<Tab *>      tabs_list;
 
 	RemovableDriveManager* removable_drive_manager() { return m_removable_drive_manager.get(); }
+	OtherInstanceMessageHandler* other_instance_message_handler() { return m_other_instance_message_handler.get(); }
 
     ImGuiWrapper* imgui() { return m_imgui.get(); }
 
@@ -211,6 +208,7 @@ public:
 
 private:
     bool            on_init_inner();
+	void            init_app_config();
     void            window_pos_save(wxTopLevelWindow* window, const std::string &name);
     void            window_pos_restore(wxTopLevelWindow* window, const std::string &name, bool default_maximized = false);
     void            window_pos_sanitize(wxTopLevelWindow* window);
