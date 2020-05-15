@@ -61,11 +61,6 @@
 #include <algorithm>
 #include <cmath>
 #include "DoubleSlider.hpp"
-#if !ENABLE_CANVAS_TOOLTIP_USING_IMGUI
-#if ENABLE_RENDER_STATISTICS
-#include <chrono>
-#endif // ENABLE_RENDER_STATISTICS
-#endif // !ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 
 #include <imgui/imgui_internal.h>
 
@@ -1377,7 +1372,6 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
     }
 }
 
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 void GLCanvas3D::Tooltip::set_text(const std::string& text)
 {
     // If the mouse is inside an ImGUI dialog, then the tooltip is suppressed.
@@ -1429,7 +1423,6 @@ void GLCanvas3D::Tooltip::render(const Vec2d& mouse_position, GLCanvas3D& canvas
     imgui.end();
     ImGui::PopStyleVar(2);
 }
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 
 #if ENABLE_SLOPE_RENDERING
 void GLCanvas3D::Slope::render() const
@@ -2093,7 +2086,6 @@ void GLCanvas3D::render()
     m_camera.debug_render();
 #endif // ENABLE_CAMERA_STATISTICS
 
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
     std::string tooltip;
 
 	// Negative coordinate means out of the window, likely because the window was deactivated.
@@ -2123,7 +2115,6 @@ void GLCanvas3D::render()
 
     if (m_tooltip_enabled)
         m_tooltip.render(m_mouse.position, *this);
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 
     wxGetApp().plater()->get_mouse3d_controller().render_settings_dialog(*this);
 
@@ -2135,30 +2126,6 @@ void GLCanvas3D::render()
     auto end_time = std::chrono::high_resolution_clock::now();
     m_render_stats.last_frame = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
 #endif // ENABLE_RENDER_STATISTICS
-
-#if !ENABLE_CANVAS_TOOLTIP_USING_IMGUI
-    std::string tooltip = "";
-
-    if (tooltip.empty())
-        tooltip = m_layers_editing.get_tooltip(*this);
-
-    if (tooltip.empty())
-        tooltip = m_gizmos.get_tooltip();
-
-    if (tooltip.empty())
-        tooltip = m_main_toolbar.get_tooltip();
-
-    if (tooltip.empty())
-        tooltip = m_undoredo_toolbar.get_tooltip();
-
-    if (tooltip.empty())
-        tooltip = m_collapse_toolbar.get_tooltip();
-
-    if (tooltip.empty())
-        tooltip = m_view_toolbar.get_tooltip();
-
-    set_tooltip(tooltip);
-#endif // !ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 }
 
 void GLCanvas3D::render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const
@@ -2828,9 +2795,7 @@ void GLCanvas3D::bind_event_handlers()
         m_canvas->Bind(wxEVT_MIDDLE_DCLICK, &GLCanvas3D::on_mouse, this);
         m_canvas->Bind(wxEVT_RIGHT_DCLICK, &GLCanvas3D::on_mouse, this);
         m_canvas->Bind(wxEVT_PAINT, &GLCanvas3D::on_paint, this);
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         m_canvas->Bind(wxEVT_SET_FOCUS, &GLCanvas3D::on_set_focus, this);
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
     }
 }
 
@@ -2858,9 +2823,7 @@ void GLCanvas3D::unbind_event_handlers()
         m_canvas->Unbind(wxEVT_MIDDLE_DCLICK, &GLCanvas3D::on_mouse, this);
         m_canvas->Unbind(wxEVT_RIGHT_DCLICK, &GLCanvas3D::on_mouse, this);
         m_canvas->Unbind(wxEVT_PAINT, &GLCanvas3D::on_paint, this);
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         m_canvas->Unbind(wxEVT_SET_FOCUS, &GLCanvas3D::on_set_focus, this);
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
     }
 }
 
@@ -3445,29 +3408,20 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
     Point pos(evt.GetX(), evt.GetY());
 
     ImGuiWrapper* imgui = wxGetApp().imgui();
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
     if (m_tooltip.is_in_imgui() && evt.LeftUp())
         // ignore left up events coming from imgui windows and not processed by them
         m_mouse.ignore_left_up = true;
     m_tooltip.set_in_imgui(false);
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
     if (imgui->update_mouse_data(evt)) {
         m_mouse.position = evt.Leaving() ? Vec2d(-1.0, -1.0) : pos.cast<double>();
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         m_tooltip.set_in_imgui(true);
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         render();
 #ifdef SLIC3R_DEBUG_MOUSE_EVENTS
         printf((format_mouse_event_debug_message(evt) + " - Consumed by ImGUI\n").c_str());
 #endif /* SLIC3R_DEBUG_MOUSE_EVENTS */
         // do not return if dragging or tooltip not empty to allow for tooltip update
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         if (!m_mouse.dragging && m_tooltip.is_empty())
             return;
-#else
-        if (!m_mouse.dragging && m_canvas->GetToolTipText().empty())
-            return;
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
     }
 
 #ifdef __WXMSW__
@@ -3526,9 +3480,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
             mouse_up_cleanup();
 
         m_mouse.set_start_position_3D_as_invalid();
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         m_mouse.position = pos.cast<double>();
-#endif /// ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         return;
     }
 
@@ -3560,18 +3512,14 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
             if (top_level_wnd && top_level_wnd->IsActive())
                 m_canvas->SetFocus();
             m_mouse.position = pos.cast<double>();
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
             m_tooltip_enabled = false;
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
             // 1) forces a frame render to ensure that m_hover_volume_idxs is updated even when the user right clicks while
             // the context menu is shown, ensuring it to disappear if the mouse is outside any volume and to
             // change the volume hover state if any is under the mouse 
             // 2) when switching between 3d view and preview the size of the canvas changes if the side panels are visible,
             // so forces a resize to avoid multiple renders with different sizes (seen as flickering)
             _refresh_if_shown_on_screen();
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
             m_tooltip_enabled = true;
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         }
         m_mouse.set_start_position_2D_as_invalid();
 //#endif
@@ -3885,14 +3833,12 @@ void GLCanvas3D::on_paint(wxPaintEvent& evt)
         this->render();
 }
 
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 void GLCanvas3D::on_set_focus(wxFocusEvent& evt)
 {
     m_tooltip_enabled = false;
     _refresh_if_shown_on_screen();
     m_tooltip_enabled = true;
 }
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
 
 Size GLCanvas3D::get_canvas_size() const
 {
@@ -3940,26 +3886,7 @@ void GLCanvas3D::reset_legend_texture()
 void GLCanvas3D::set_tooltip(const std::string& tooltip) const
 {
     if (m_canvas != nullptr)
-    {
-#if ENABLE_CANVAS_TOOLTIP_USING_IMGUI
         m_tooltip.set_text(tooltip);
-#else
-        wxString txt = wxString::FromUTF8(tooltip.data());
-        if (m_canvas->GetToolTipText() != txt)
-            m_canvas->SetToolTip(txt);
-
-//        wxToolTip* t = m_canvas->GetToolTip();
-//        if (t != nullptr)
-//        {
-//            if (tooltip.empty())
-//                m_canvas->UnsetToolTip();
-//            else
-//                t->SetTip(wxString::FromUTF8(tooltip.data()));
-//        }
-//        else if (!tooltip.empty()) // Avoid "empty" tooltips => unset of the empty tooltip leads to application crash under OSX
-//            m_canvas->SetToolTip(wxString::FromUTF8(tooltip.data()));
-#endif // ENABLE_CANVAS_TOOLTIP_USING_IMGUI
-    }
 }
 
 void GLCanvas3D::do_move(const std::string& snapshot_type)
@@ -5477,6 +5404,44 @@ void GLCanvas3D::_render_selection_center() const
 }
 #endif // ENABLE_RENDER_SELECTION_CENTER
 
+void GLCanvas3D::_check_and_update_toolbar_icon_scale() const
+{
+    float scale = wxGetApp().toolbar_icon_scale();
+    Size cnv_size = get_canvas_size();
+
+    float size = GLToolbar::Default_Icons_Size * scale;
+
+    // Set current size for all top toolbars. It will be used for next calculations
+#if ENABLE_RETINA_GL
+    const float sc = m_retina_helper->get_scale_factor() * scale;
+    m_main_toolbar.set_scale(sc);
+    m_undoredo_toolbar.set_scale(sc);
+    m_collapse_toolbar.set_scale(sc);
+#else
+    m_main_toolbar.set_icons_size(size);
+    m_undoredo_toolbar.set_icons_size(size);
+    m_collapse_toolbar.set_icons_size(size);
+#endif // ENABLE_RETINA_GL
+
+    float top_tb_width  = m_main_toolbar.get_width() + m_undoredo_toolbar.get_width() + m_collapse_toolbar.get_width();
+    int   items_cnt     = m_main_toolbar.get_visible_items_cnt() + m_undoredo_toolbar.get_visible_items_cnt() + m_collapse_toolbar.get_visible_items_cnt();
+    float noitems_width = top_tb_width - size * items_cnt; // width of separators and borders in top toolbars 
+
+    // calculate scale needed for items in all top toolbars
+    float new_h_scale = (cnv_size.get_width() - noitems_width) / (items_cnt * GLToolbar::Default_Icons_Size);
+
+    items_cnt = m_gizmos.get_selectable_icons_cnt() + 3; // +3 means a place for top and view toolbars and separators in gizmos toolbar
+
+    // calculate scale needed for items in the gizmos toolbar
+    float new_v_scale = cnv_size.get_height() / (items_cnt * GLGizmosManager::Default_Icons_Size);
+
+    // set minimum scale as a auto scale for the toolbars
+    float new_scale = std::min(new_h_scale, new_v_scale);
+    if (fabs(new_scale - scale) > EPSILON)
+        wxGetApp().set_auto_toolbar_icon_scale(new_scale);
+}
+
+
 void GLCanvas3D::_render_overlays() const
 {
     glsafe(::glDisable(GL_DEPTH_TEST));
@@ -5489,6 +5454,8 @@ void GLCanvas3D::_render_overlays() const
     double gui_scale = camera.get_gui_scale();
     glsafe(::glScaled(gui_scale, gui_scale, 1.0));
 
+    _check_and_update_toolbar_icon_scale();
+
     _render_gizmos_overlay();
     _render_warning_texture();
     _render_legend_texture();
@@ -5496,12 +5463,12 @@ void GLCanvas3D::_render_overlays() const
     // main toolbar and undoredo toolbar need to be both updated before rendering because both their sizes are needed
     // to correctly place them
 #if ENABLE_RETINA_GL
-    const float scale = m_retina_helper->get_scale_factor() * wxGetApp().toolbar_icon_scale(true);
+    const float scale = m_retina_helper->get_scale_factor() * wxGetApp().toolbar_icon_scale(/*true*/);
     m_main_toolbar.set_scale(scale);
     m_undoredo_toolbar.set_scale(scale);
     m_collapse_toolbar.set_scale(scale);
 #else
-    const float size = int(GLToolbar::Default_Icons_Size * wxGetApp().toolbar_icon_scale(true));
+    const float size = int(GLToolbar::Default_Icons_Size * wxGetApp().toolbar_icon_scale(/*true*/));
     m_main_toolbar.set_icons_size(size);
     m_undoredo_toolbar.set_icons_size(size);
     m_collapse_toolbar.set_icons_size(size);
@@ -5608,7 +5575,8 @@ void GLCanvas3D::_render_main_toolbar() const
     float inv_zoom = (float)wxGetApp().plater()->get_camera().get_inv_zoom();
 
     float top = 0.5f * (float)cnv_size.get_height() * inv_zoom;
-    float left = -0.5f * (m_main_toolbar.get_width() + m_undoredo_toolbar.get_width()) * inv_zoom;
+    float collapse_toolbar_width = m_collapse_toolbar.is_enabled() ? m_collapse_toolbar.get_width() : 0.0f;
+    float left = -0.5f * (m_main_toolbar.get_width() + m_undoredo_toolbar.get_width() + collapse_toolbar_width) * inv_zoom;
 
     m_main_toolbar.set_position(top, left);
     m_main_toolbar.render(*this);
@@ -5623,7 +5591,8 @@ void GLCanvas3D::_render_undoredo_toolbar() const
     float inv_zoom = (float)wxGetApp().plater()->get_camera().get_inv_zoom();
 
     float top = 0.5f * (float)cnv_size.get_height() * inv_zoom;
-    float left = (m_main_toolbar.get_width() - 0.5f * (m_main_toolbar.get_width() + m_undoredo_toolbar.get_width())) * inv_zoom;
+    float collapse_toolbar_width = m_collapse_toolbar.is_enabled() ? m_collapse_toolbar.get_width() : 0.0f;
+    float left = (m_main_toolbar.get_width() - 0.5f * (m_main_toolbar.get_width() + m_undoredo_toolbar.get_width() + collapse_toolbar_width)) * inv_zoom;
     m_undoredo_toolbar.set_position(top, left);
     m_undoredo_toolbar.render(*this);
 }
