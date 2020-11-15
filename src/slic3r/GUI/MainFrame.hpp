@@ -7,12 +7,14 @@
 #include <wx/settings.h>
 #include <wx/string.h>
 #include <wx/filehistory.h>
+#ifdef __APPLE__
+#include <wx/taskbar.h>
+#endif // __APPLE__
 
 #include <string>
 #include <map>
 
 #include "GUI_Utils.hpp"
-#include "Plater.hpp"
 #include "Event.hpp"
 
 class wxNotebook;
@@ -27,6 +29,8 @@ namespace GUI
 
 class Tab;
 class PrintHostQueueDialog;
+class Plater;
+class MainFrame;
 
 enum QuickSlice
 {
@@ -50,11 +54,11 @@ struct PresetTab {
 class SettingsDialog : public DPIDialog
 {
     wxNotebook* m_tabpanel { nullptr };
-    MainFrame*  m_main_frame {nullptr };
+    MainFrame*  m_main_frame { nullptr };
 public:
     SettingsDialog(MainFrame* mainframe);
-    ~SettingsDialog() {}
-    wxNotebook* get_tabpanel() { return m_tabpanel; }
+    ~SettingsDialog() = default;
+    void set_tabpanel(wxNotebook* tabpanel) { m_tabpanel = tabpanel; }
 
 protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;
@@ -67,10 +71,15 @@ class MainFrame : public DPIFrame
     wxString    m_qs_last_input_file = wxEmptyString;
     wxString    m_qs_last_output_file = wxEmptyString;
     wxString    m_last_config = wxEmptyString;
+#if ENABLE_GCODE_VIEWER
+    wxMenuBar*  m_menubar{ nullptr };
+#endif // ENABLE_GCODE_VIEWER
+
 #if 0
     wxMenuItem* m_menu_item_repeat { nullptr }; // doesn't used now
 #endif
     wxMenuItem* m_menu_item_reslice_now { nullptr };
+    wxSizer*    m_main_sizer{ nullptr };
 
     PrintHostQueueDialog *m_printhost_queue_dlg;
 
@@ -113,18 +122,28 @@ class MainFrame : public DPIFrame
 
     wxFileHistory m_recent_projects;
 
-    enum SettingsLayout {
-        slOld = 0,
-        slNew,
-        slDlg,
-    }               m_layout;
+    enum class ESettingsLayout
+    {
+        Unknown,
+        Old,
+        New,
+        Dlg,
+#if ENABLE_GCODE_VIEWER
+        GCodeViewer
+#endif // ENABLE_GCODE_VIEWER
+    };
+    
+    ESettingsLayout m_layout{ ESettingsLayout::Unknown };
 
 protected:
     virtual void on_dpi_changed(const wxRect &suggested_rect);
+    virtual void on_sys_color_changed() override;
 
 public:
     MainFrame();
     ~MainFrame() = default;
+
+    void update_layout();
 
 	// Called when closing the application and when switching the application language.
 	void 		shutdown();
@@ -136,12 +155,22 @@ public:
     void        init_tabpanel();
     void        create_preset_tabs();
     void        add_created_tab(Tab* panel);
+    bool        is_active_and_shown_tab(Tab* tab);
+    // Register Win32 RawInput callbacks (3DConnexion) and removable media insert / remove callbacks.
+    // Called from wxEVT_ACTIVATE, as wxEVT_CREATE was not reliable (bug in wxWidgets?).
+    void        register_win32_callbacks();
+#if ENABLE_GCODE_VIEWER
+    void        init_menubar_as_editor();
+    void        init_menubar_as_gcodeviewer();
+#else
     void        init_menubar();
+#endif // ENABLE_GCODE_VIEWER
     void        update_menubar();
 
-    void        update_ui_from_settings();
+    void        update_ui_from_settings(bool apply_free_camera_correction = true);
     bool        is_loaded() const { return m_loaded; }
     bool        is_last_input_file() const  { return !m_qs_last_input_file.IsEmpty(); }
+    bool        is_dlg_layout() const { return m_layout == ESettingsLayout::Dlg; }
 
     void        quick_slice(const int qs = qsUndef);
     void        reslice_now();
@@ -151,11 +180,12 @@ public:
     void        load_config_file();
     // Open a config file. Return true if loaded.
     bool        load_config_file(const std::string &path);
-    void        export_configbundle();
+    void        export_configbundle(bool export_physical_printers = false);
     void        load_configbundle(wxString file = wxEmptyString);
     void        load_config(const DynamicPrintConfig& config);
     // Select tab in m_tabpanel
     // When tab == -1, will be selected last selected tab
+    void        select_tab(Tab* tab);
     void        select_tab(size_t tab = size_t(-1));
     void        select_view(const std::string& direction);
     // Propagate changed configuration from the Tab to the Plater and save changes to the AppConfig
@@ -167,9 +197,14 @@ public:
 
     Plater*             m_plater { nullptr };
     wxNotebook*         m_tabpanel { nullptr };
-    SettingsDialog*     m_settings_dialog { nullptr };
+    SettingsDialog      m_settings_dialog;
+    wxWindow*           m_plater_page{ nullptr };
     wxProgressDialog*   m_progress_dialog { nullptr };
     std::shared_ptr<ProgressStatusBar>  m_statusbar;
+
+#ifdef __APPLE__
+    std::unique_ptr<wxTaskBarIcon> m_taskbar_icon;
+#endif // __APPLE__
 
 #ifdef _WIN32
     void*				m_hDeviceNotify { nullptr };

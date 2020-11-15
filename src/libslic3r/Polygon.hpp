@@ -61,12 +61,14 @@ public:
     bool contains(const Point &point) const;
     Polygons simplify(double tolerance) const;
     void simplify(double tolerance, Polygons &polygons) const;
+    void densify(float min_length, std::vector<float>* lengths = nullptr);
     void triangulate_convex(Polygons* polygons) const;
     Point centroid() const;
     Points concave_points(double angle = PI) const;
     Points convex_points(double angle = PI) const;
     // Projection of a point onto the polygon.
     Point point_projection(const Point &point) const;
+    std::vector<float> parameter_by_length() const;
 };
 
 inline bool operator==(const Polygon &lhs, const Polygon &rhs) { return lhs.points == rhs.points; }
@@ -84,6 +86,14 @@ inline double total_length(const Polygons &polylines) {
     for (Polygons::const_iterator it = polylines.begin(); it != polylines.end(); ++it)
         total += it->length();
     return total;
+}
+
+inline double area(const Polygons &polys)
+{
+    double s = 0.;
+    for (auto &p : polys) s += p.area();
+
+    return s;
 }
 
 // Remove sticks (tentacles with zero area) from the polygon.
@@ -153,9 +163,11 @@ inline Lines to_lines(const Polygon &poly)
 {
     Lines lines;
     lines.reserve(poly.points.size());
-    for (Points::const_iterator it = poly.points.begin(); it != poly.points.end()-1; ++it)
-        lines.push_back(Line(*it, *(it + 1)));
-    lines.push_back(Line(poly.points.back(), poly.points.front()));
+    if (poly.points.size() > 2) {
+        for (Points::const_iterator it = poly.points.begin(); it != poly.points.end()-1; ++it)
+            lines.push_back(Line(*it, *(it + 1)));
+        lines.push_back(Line(poly.points.back(), poly.points.front()));
+    }
     return lines;
 }
 

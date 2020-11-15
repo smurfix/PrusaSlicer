@@ -13,6 +13,10 @@ class Layer;
 class PrintRegion;
 class PrintObject;
 
+namespace FillAdaptive {
+    struct Octree;
+};
+
 class LayerRegion
 {
 public:
@@ -134,7 +138,8 @@ public:
         return false;
     }
     void                    make_perimeters();
-    void                    make_fills();
+    void                    make_fills() { this->make_fills(nullptr, nullptr); };
+    void                    make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree);
     void 					make_ironing();
 
     void                    export_region_slices_to_svg(const char *path) const;
@@ -166,6 +171,7 @@ class SupportLayer : public Layer
 {
 public:
     // Polygons covered by the supports: base, interface and contact areas.
+    // Used to suppress retraction if moving for a support extrusion over these support_islands.
     ExPolygonCollection         support_islands;
     // Extrusion paths for the support base and for the support interface and contacts.
     ExtrusionEntityCollection   support_fills;

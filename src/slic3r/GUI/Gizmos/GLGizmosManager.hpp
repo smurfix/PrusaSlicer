@@ -6,6 +6,8 @@
 #include "slic3r/GUI/Gizmos/GLGizmoBase.hpp"
 #include "slic3r/GUI/Gizmos/GLGizmosCommon.hpp"
 
+#include "libslic3r/ObjectID.hpp"
+
 #include <map>
 
 namespace Slic3r {
@@ -65,6 +67,7 @@ public:
         Hollow,
         SlaSupports,
         FdmSupports,
+        Seam,
         Undefined
     };
 
@@ -139,11 +142,6 @@ public:
         EType new_current = m_current;
         m_current = old_current;
 
-        // Update common data. They should be updated when activate_gizmo is
-        // called, so it can be used in on_set_state which is called from there.
-        if (new_current != Undefined)
-            m_common_gizmos_data->update(m_gizmos[new_current]->get_requirements());
-
         // activate_gizmo call sets m_current and calls set_state for the gizmo
         // it does nothing in case the gizmo is already activated
         // it can safely be called for Undefined gizmo
@@ -206,7 +204,7 @@ public:
 
     void set_sla_support_data(ModelObject* model_object);
 
-    void set_fdm_support_data(ModelObject* model_object);
+    void set_painter_gizmo_data();
 
     bool gizmo_event(SLAGizmoEventType action, const Vec2d& mouse_position = Vec2d::Zero(), bool shift_down = false, bool alt_down = false, bool control_down = false);
     ClippingPlane get_clipping_plane() const;
@@ -214,6 +212,7 @@ public:
 
     void render_current_gizmo() const;
     void render_current_gizmo_for_picking_pass() const;
+    void render_painter_gizmo() const;
 
     void render_overlay() const;
 

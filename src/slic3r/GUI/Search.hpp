@@ -14,8 +14,8 @@
 #include <wx/dialog.h>
 
 #include "GUI_Utils.hpp"
-#include "Preset.hpp"
 #include "wxExtensions.hpp"
+#include "libslic3r/Preset.hpp"
 
 
 namespace Slic3r {
@@ -37,8 +37,8 @@ struct GroupAndCategory {
 };
 
 struct Option {
-    bool operator<(const Option& other) const { return other.label > this->label; }
-    bool operator>(const Option& other) const { return other.label < this->label; }
+//    bool operator<(const Option& other) const { return other.label > this->label; }
+    bool operator<(const Option& other) const { return other.opt_key > this->opt_key; }
 
     // Fuzzy matching works at a character level. Thus matching with wide characters is a safer bet than with short characters,
     // though for some languages (Chinese?) it may not work correctly.
@@ -67,7 +67,6 @@ struct FoundOption {
 struct OptionViewParameters
 {
     bool category   {false};
-    bool group      {true };
     bool english    {false};
 
     int  hovered_id {0};
@@ -117,12 +116,18 @@ public:
 
     const FoundOption& operator[](const size_t pos) const noexcept { return found[pos]; }
     const Option& get_option(size_t pos_in_filter) const;
+    const Option& get_option(const std::string& opt_key) const;
 
     const std::vector<FoundOption>& found_options() { return found; }
     const GroupAndCategory&         get_group_and_category (const std::string& opt_key) { return groups_and_categories[opt_key]; }
     std::string& search_string() { return search_line; }
 
     void set_printer_technology(PrinterTechnology pt) { printer_technology = pt; }
+
+    void sort_options_by_opt_key() {
+        std::sort(options.begin(), options.end(), [](const Option& o1, const Option& o2) {
+            return o1.opt_key < o2.opt_key; });
+    }
 };
 
 
@@ -158,46 +163,85 @@ protected:
     wxString m_input_string;
 };
 
-
 //------------------------------------------
 //          SearchDialog
 //------------------------------------------
-
+class SearchListModel;
 class SearchDialog : public GUI::DPIDialog
 {
     wxString search_str;
     wxString default_string;
 
-    wxTextCtrl*     search_line    { nullptr };
-    wxListBox*      search_list    { nullptr };
-    wxCheckBox*     check_category { nullptr };
-    wxCheckBox*     check_group    { nullptr };
-    wxCheckBox*     check_english  { nullptr };
+    bool     prevent_list_events {false};
 
-    OptionsSearcher* searcher;
+    wxTextCtrl*         search_line         { nullptr };
+    wxDataViewCtrl*     search_list         { nullptr };
+    SearchListModel*    search_list_model   { nullptr };
+    wxCheckBox*         check_category      { nullptr };
+    wxCheckBox*         check_english       { nullptr };
 
-    void update_list();
+    OptionsSearcher*    searcher            { nullptr };
 
     void OnInputText(wxCommandEvent& event);
     void OnLeftUpInTextCtrl(wxEvent& event);
-    
-    void OnMouseMove(wxMouseEvent& event); 
-    void OnMouseClick(wxMouseEvent& event);
-    void OnSelect(wxCommandEvent& event);
     void OnKeyDown(wxKeyEvent& event);
 
+    void OnActivate(wxDataViewEvent& event);
+    void OnSelect(wxDataViewEvent& event);
+
     void OnCheck(wxCommandEvent& event);
+    void OnMotion(wxMouseEvent& event);
+    void OnLeftDown(wxMouseEvent& event);
+
+    void update_list();
 
 public:
     SearchDialog(OptionsSearcher* searcher);
     ~SearchDialog() {}
 
     void Popup(wxPoint position = wxDefaultPosition);
-    void ProcessSelection(int selection);
+    void ProcessSelection(wxDataViewItem selection);
 
 protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;
+    virtual void on_sys_color_changed() override;
 };
+
+
+// ----------------------------------------------------------------------------
+// SearchListModel
+// ----------------------------------------------------------------------------
+
+class SearchListModel : public wxDataViewVirtualListModel
+{
+    std::vector<std::pair<wxString, int>>   m_values;
+    ScalableBitmap                          m_icon[5];
+
+public:
+    enum {
+        colIcon,
+        colMarkedText,
+        colMax
+    };
+
+    SearchListModel(wxWindow* parent);
+
+    // helper methods to change the model
+
+    void Clear();
+    void Prepend(const std::string& text);
+    void msw_rescale();
+
+    // implementation of base class virtuals to define model
+
+    virtual unsigned int GetColumnCount() const override { return colMax; }
+    virtual wxString GetColumnType(unsigned int col) const override;
+    virtual void GetValueByRow(wxVariant& variant, unsigned int row, unsigned int col) const override;
+    virtual bool GetAttrByRow(unsigned int row, unsigned int col, wxDataViewItemAttr& attr) const override { return true; }
+    virtual bool SetValueByRow(const wxVariant& variant, unsigned int row, unsigned int col) override { return false; }
+};
+
+
 
 
 } // Search namespace

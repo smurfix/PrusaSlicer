@@ -10,8 +10,6 @@
 #include <cmath>
 
 #include "libslic3r.h"
-#include "Point.hpp"
-#include "BoundingBox.hpp"
 
 namespace Slic3r {
 
@@ -115,15 +113,6 @@ template<class T> struct remove_cvref
 };
 
 template<class T> using remove_cvref_t = typename remove_cvref<T>::type;
-
-template<class T, class I, class... Args> // Arbitrary allocator can be used
-inline IntegerOnly<I, std::vector<T, Args...>> reserve_vector(I capacity)
-{
-    std::vector<T, Args...> ret;
-    if (capacity > I(0)) ret.reserve(size_t(capacity));
-    
-    return ret;
-}
 
 /// Exactly like Matlab https://www.mathworks.com/help/matlab/ref/linspace.html
 template<class T, class I, class = IntegerOnly<I>>

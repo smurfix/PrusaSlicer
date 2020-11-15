@@ -5,15 +5,19 @@
 #include <memory>
 #include <chrono>
 
-#include "3DScene.hpp"
 #include "GLToolbar.hpp"
-#include "GLShader.hpp"
 #include "Event.hpp"
 #include "Selection.hpp"
 #include "Gizmos/GLGizmosManager.hpp"
 #include "GUI_ObjectLayers.hpp"
 #include "GLSelectionRectangle.hpp"
 #include "MeshUtils.hpp"
+#if ENABLE_GCODE_VIEWER
+#include "libslic3r/GCode/GCodeProcessor.hpp"
+#include "GCodeViewer.hpp"
+#endif // ENABLE_GCODE_VIEWER
+
+#include "libslic3r/Slicing.hpp"
 
 #include <float.h>
 
@@ -33,13 +37,18 @@ class wxGLContext;
 
 namespace Slic3r {
 
-class Bed3D;
 struct Camera;
 class BackgroundSlicingProcess;
+#if !ENABLE_GCODE_VIEWER
 class GCodePreviewData;
+#endif // !ENABLE_GCODE_VIEWER
 struct ThumbnailData;
-struct SlicingParameters;
-enum LayerHeightEditActionType : unsigned int;
+class ModelObject;
+class ModelInstance;
+class PrintObject;
+class Print;
+class SLAPrint;
+namespace CustomGCode { struct Item; }
 
 namespace GUI {
 
@@ -99,8 +108,13 @@ wxDECLARE_EVENT(EVT_GLCANVAS_MOUSE_DRAGGING_FINISHED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_UPDATE_BED_SHAPE, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_TAB, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_RESETGIZMOS, SimpleEvent);
+#if ENABLE_GCODE_VIEWER
+wxDECLARE_EVENT(EVT_GLCANVAS_MOVE_LAYERS_SLIDER, wxKeyEvent);
+#else
 wxDECLARE_EVENT(EVT_GLCANVAS_MOVE_DOUBLE_SLIDER, wxKeyEvent);
+#endif // ENABLE_GCODE_VIEWER
 wxDECLARE_EVENT(EVT_GLCANVAS_EDIT_COLOR_CHANGE, wxKeyEvent);
+wxDECLARE_EVENT(EVT_GLCANVAS_JUMP_TO, wxKeyEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_UNDO, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_REDO, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_COLLAPSE_SIDEBAR, SimpleEvent);
@@ -114,6 +128,7 @@ class GLCanvas3D
     static const double DefaultCameraZoomToBoxMarginFactor;
 
 public:
+#if !ENABLE_GCODE_VIEWER
     struct GCodePreviewVolumeIndex
     {
         enum EType
@@ -140,6 +155,7 @@ public:
 
         void reset() { first_volumes.clear(); }
     };
+#endif // !ENABLE_GCODE_VIEWER
 
 private:
     class LayersEditing
@@ -157,7 +173,6 @@ private:
     private:
 
         bool                        m_enabled;
-        Shader                      m_shader;
         unsigned int                m_z_texture_id;
         // Not owned by LayersEditing.
         const DynamicPrintConfig   *m_config;
@@ -172,6 +187,8 @@ private:
 
         mutable float               m_adaptive_quality;
         mutable HeightProfileSmoothingParams m_smooth_params;
+        
+        static float                s_overelay_window_width;
 
         class LayersTexture
         {
@@ -204,8 +221,9 @@ private:
         LayersEditing();
         ~LayersEditing();
 
-        bool init(const std::string& vertex_shader_filename, const std::string& fragment_shader_filename);
-		void set_config(const DynamicPrintConfig* config);
+        void init();
+
+        void set_config(const DynamicPrintConfig* config);
         void select_object(const Model &model, int object_id);
 
         bool is_allowed() const;
@@ -226,6 +244,7 @@ private:
         static bool bar_rect_contains(const GLCanvas3D& canvas, float x, float y);
         static Rect get_bar_rect_screen(const GLCanvas3D& canvas);
         static Rect get_bar_rect_viewport(const GLCanvas3D& canvas);
+        static float get_overlay_window_width() { return LayersEditing::s_overelay_window_width; }
 
         float object_max_z() const { return m_object_max_z; }
 
@@ -239,6 +258,7 @@ private:
         void update_slicing_parameters();
 
         static float thickness_bar_width(const GLCanvas3D &canvas);
+        
     };
 
     struct Mouse
@@ -335,6 +355,7 @@ private:
         bool generate(const std::string& msg, const GLCanvas3D& canvas, bool compress, bool red_colored = false);
     };
 
+#if !ENABLE_GCODE_VIEWER
     class LegendTexture : public GUI::GLTexture
     {
         static const int Px_Title_Offset = 5;
@@ -361,6 +382,7 @@ private:
 
         void render(const GLCanvas3D& canvas) const;
     };
+#endif // !ENABLE_GCODE_VIEWER
 
 #if ENABLE_RENDER_STATISTICS
     struct RenderStats
@@ -401,14 +423,13 @@ private:
         bool is_in_imgui() const { return m_in_imgui; }
     };
 
-#if ENABLE_SLOPE_RENDERING
     class Slope
     {
         bool m_enabled{ false };
         bool m_dialog_shown{ false };
         GLCanvas3D& m_canvas;
         GLVolumeCollection& m_volumes;
-
+        static float s_window_width;
     public:
         Slope(GLCanvas3D& canvas, GLVolumeCollection& volumes) : m_canvas(canvas), m_volumes(volumes) {}
 
@@ -416,14 +437,11 @@ private:
         bool is_enabled() const { return m_enabled; }
         void use(bool use) { m_volumes.set_slope_active(m_enabled ? use : false); }
         bool is_used() const { return m_volumes.is_slope_active(); }
-        void show_dialog(bool show) { if (show && is_used()) return; use(show); m_dialog_shown = show; }
-        bool is_dialog_shown() const { return m_dialog_shown; }
-        void render() const;
-        void set_range(const std::array<float, 2>& range) const {
-            m_volumes.set_slope_z_range({ -::cos(Geometry::deg2rad(90.0f - range[0])), -::cos(Geometry::deg2rad(90.0f - range[1])) });
+        void set_normal_angle(float angle_in_deg) const {
+            m_volumes.set_slope_normal_z(-::cos(Geometry::deg2rad(90.0f - angle_in_deg)));
         }
+        static float get_window_width() { return s_window_width; };
     };
-#endif // ENABLE_SLOPE_RENDERING
 
 public:
     enum ECursorType : unsigned char
@@ -439,16 +457,16 @@ private:
     std::unique_ptr<RetinaHelper> m_retina_helper;
 #endif
     bool m_in_render;
+#if !ENABLE_GCODE_VIEWER
     LegendTexture m_legend_texture;
+#endif // !ENABLE_GCODE_VIEWER
     WarningTexture m_warning_texture;
     wxTimer m_timer;
     LayersEditing m_layers_editing;
-    Shader m_shader;
     Mouse m_mouse;
     mutable GLGizmosManager m_gizmos;
     mutable GLToolbar m_main_toolbar;
     mutable GLToolbar m_undoredo_toolbar;
-    mutable GLToolbar m_collapse_toolbar;
     ClippingPlane m_clipping_planes[2];
     mutable ClippingPlane m_camera_clipping_plane;
     bool m_use_clipping_planes;
@@ -457,8 +475,13 @@ private:
     // when true renders an extra frame by not resetting m_dirty to false
     // see request_extra_frame()
     bool m_extra_frame_requested;
+    bool m_event_handlers_bound{ false };
 
     mutable GLVolumeCollection m_volumes;
+#if ENABLE_GCODE_VIEWER
+    GCodeViewer m_gcode_viewer;
+#endif // ENABLE_GCODE_VIEWER
+
     Selection m_selection;
     const DynamicPrintConfig* m_config;
     Model* m_model;
@@ -469,7 +492,9 @@ private:
     bool m_initialized;
     bool m_apply_zoom_to_volumes_filter;
     mutable std::vector<int> m_hover_volume_idxs;
+#if !ENABLE_GCODE_VIEWER
     bool m_legend_texture_enabled;
+#endif // !ENABLE_GCODE_VIEWER
     bool m_picking_enabled;
     bool m_moving_enabled;
     bool m_dynamic_background_enabled;
@@ -487,7 +512,9 @@ private:
 
     bool m_reload_delayed;
 
+#if !ENABLE_GCODE_VIEWER
     GCodePreviewVolumeIndex m_gcode_preview_volume_index;
+#endif // !ENABLE_GCODE_VIEWER
 
 #if ENABLE_RENDER_PICKING_PASS
     bool m_show_picking_texture;
@@ -504,9 +531,7 @@ private:
     Labels m_labels;
     mutable Tooltip m_tooltip;
     mutable bool m_tooltip_enabled{ true };
-#if ENABLE_SLOPE_RENDERING
     Slope m_slope;
-#endif // ENABLE_SLOPE_RENDERING
 
 public:
     explicit GLCanvas3D(wxGLCanvas* canvas);
@@ -528,6 +553,12 @@ public:
     const GLVolumeCollection& get_volumes() const { return m_volumes; }
     void reset_volumes();
     int check_volumes_outside_state() const;
+
+#if ENABLE_GCODE_VIEWER
+    void reset_gcode_toolpaths() { m_gcode_viewer.reset(); }
+    const GCodeViewer::SequentialView& get_gcode_sequential_view() const { return m_gcode_viewer.get_sequential_view(); }
+    void update_gcode_sequential_view_current(unsigned int first, unsigned int last) { m_gcode_viewer.update_sequential_view_current(first, last); }
+#endif // ENABLE_GCODE_VIEWER
 
     void toggle_sla_auxiliaries_visibility(bool visible, const ModelObject* mo = nullptr, int instance_idx = -1);
     void toggle_model_objects_visibility(bool visible, const ModelObject* mo = nullptr, int instance_idx = -1);
@@ -561,7 +592,6 @@ public:
     void set_color_by(const std::string& value);
 
     void refresh_camera_scene_box();
-    const Shader& get_shader() const { return m_shader; }
 
     BoundingBoxf3 volumes_bounding_box() const;
     BoundingBoxf3 scene_bounding_box() const;
@@ -584,17 +614,17 @@ public:
     void enable_selection(bool enable);
     void enable_main_toolbar(bool enable);
     void enable_undoredo_toolbar(bool enable);
-    void enable_collapse_toolbar(bool enable);
     void enable_dynamic_background(bool enable);
     void enable_labels(bool enable) { m_labels.enable(enable); }
-#if ENABLE_SLOPE_RENDERING
     void enable_slope(bool enable) { m_slope.enable(enable); }
-#endif // ENABLE_SLOPE_RENDERING
     void allow_multisample(bool allow);
 
     void zoom_to_bed();
     void zoom_to_volumes();
     void zoom_to_selection();
+#if ENABLE_GCODE_VIEWER
+    void zoom_to_gcode();
+#endif // ENABLE_GCODE_VIEWER
     void select_view(const std::string& direction);
 
     void update_volumes_colors_by_extruder();
@@ -611,7 +641,21 @@ public:
     void delete_selected();
     void ensure_on_bed(unsigned int object_idx);
 
+#if ENABLE_GCODE_VIEWER
+    bool is_gcode_legend_enabled() const { return m_gcode_viewer.is_legend_enabled(); }
+    GCodeViewer::EViewType get_gcode_view_type() const { return m_gcode_viewer.get_view_type(); }
+    const std::vector<double>& get_gcode_layers_zs() const;
+    std::vector<double> get_volumes_print_zs(bool active_only) const;
+    unsigned int get_gcode_options_visibility_flags() const { return m_gcode_viewer.get_options_visibility_flags(); }
+    void set_gcode_options_visibility_from_flags(unsigned int flags);
+    unsigned int get_toolpath_role_visibility_flags() const { return m_gcode_viewer.get_toolpath_role_visibility_flags(); }
+    void set_toolpath_role_visibility_flags(unsigned int flags);
+    void set_toolpath_view_type(GCodeViewer::EViewType type);
+    void set_volumes_z_range(const std::array<double, 2>& range);
+    void set_toolpaths_z_range(const std::array<unsigned int, 2>& range);
+#else
     std::vector<double> get_current_print_zs(bool active_only) const;
+#endif // ENABLE_GCODE_VIEWER
     void set_toolpaths_range(double low, double high);
 
     std::vector<int> load_object(const ModelObject& model_object, int obj_idx, std::vector<int> instance_idxs);
@@ -621,7 +665,14 @@ public:
 
     void reload_scene(bool refresh_immediately, bool force_full_scene_refresh = false);
 
+#if ENABLE_GCODE_VIEWER
+    void load_gcode_preview(const GCodeProcessor::Result& gcode_result);
+    void refresh_gcode_preview(const GCodeProcessor::Result& gcode_result, const std::vector<std::string>& str_tool_colors);
+    void set_gcode_view_preview_type(GCodeViewer::EViewType type) { return m_gcode_viewer.set_view_type(type); }
+    GCodeViewer::EViewType get_gcode_view_preview_type() const { return m_gcode_viewer.get_view_type(); }
+#else
     void load_gcode_preview(const GCodePreviewData& preview_data, const std::vector<std::string>& str_tool_colors);
+#endif // ENABLE_GCODE_VIEWER
     void load_sla_preview();
     void load_preview(const std::vector<std::string>& str_tool_colors, const std::vector<CustomGCode::Item>& color_print_values);
     void bind_event_handlers();
@@ -640,7 +691,9 @@ public:
     Size get_canvas_size() const;
     Vec2d get_local_mouse_position() const;
 
+#if !ENABLE_GCODE_VIEWER
     void reset_legend_texture();
+#endif // !ENABLE_GCODE_VIEWER
 
     void set_tooltip(const std::string& tooltip) const;
 
@@ -711,12 +764,9 @@ public:
     bool are_labels_shown() const { return m_labels.is_shown(); }
     void show_labels(bool show) { m_labels.show(show); }
 
-#if ENABLE_SLOPE_RENDERING
-    bool is_slope_shown() const { return m_slope.is_dialog_shown(); }
+    bool is_using_slope() const { return m_slope.is_used(); }
     void use_slope(bool use) { m_slope.use(use); }
-    void show_slope(bool show) { m_slope.show_dialog(show); }
-    void set_slope_range(const std::array<float, 2>& range) { m_slope.set_range(range); }
-#endif // ENABLE_SLOPE_RENDERING
+    void set_slope_normal_angle(float angle_in_deg) { m_slope.set_normal_angle(angle_in_deg); }
 
 private:
     bool _is_shown_on_screen() const;
@@ -742,6 +792,9 @@ private:
     void _render_background() const;
     void _render_bed(bool bottom, bool show_axes) const;
     void _render_objects() const;
+#if ENABLE_GCODE_VIEWER
+    void _render_gcode() const;
+#endif // ENABLE_GCODE_VIEWER
     void _render_selection() const;
 #if ENABLE_RENDER_SELECTION_CENTER
     void _render_selection_center() const;
@@ -749,7 +802,9 @@ private:
     void _check_and_update_toolbar_icon_scale() const;
     void _render_overlays() const;
     void _render_warning_texture() const;
+#if !ENABLE_GCODE_VIEWER
     void _render_legend_texture() const;
+#endif // !ENABLE_GCODE_VIEWER
     void _render_volumes_for_picking() const;
     void _render_current_gizmo() const;
     void _render_gizmos_overlay() const;
@@ -797,22 +852,28 @@ private:
     // Create 3D thick extrusion lines for wipe tower extrusions
     void _load_wipe_tower_toolpaths(const std::vector<std::string>& str_tool_colors);
 
+#if !ENABLE_GCODE_VIEWER
     // generates gcode extrusion paths geometry
     void _load_gcode_extrusion_paths(const GCodePreviewData& preview_data, const std::vector<float>& tool_colors);
     // generates gcode travel paths geometry
     void _load_gcode_travel_paths(const GCodePreviewData& preview_data, const std::vector<float>& tool_colors);
     // generates objects and wipe tower geometry
     void _load_fff_shells();
+#endif // !ENABLE_GCODE_VIEWER
     // Load SLA objects and support structures for objects, for which the slaposSliceSupports step has been finished.
 	void _load_sla_shells();
+#if !ENABLE_GCODE_VIEWER
     // sets gcode geometry visibility according to user selection
     void _update_gcode_volumes_visibility(const GCodePreviewData& preview_data);
+#endif // !ENABLE_GCODE_VIEWER
     void _update_toolpath_volumes_outside_state();
     void _update_sla_shells_outside_state();
     void _show_warning_texture_if_needed(WarningTexture::Warning warning);
 
+#if !ENABLE_GCODE_VIEWER
     // generates the legend texture in dependence of the current shown view type
     void _generate_legend_texture(const GCodePreviewData& preview_data, const std::vector<float>& tool_colors);
+#endif // !ENABLE_GCODE_VIEWER
 
     // generates a warning texture containing the given message
     void _set_warning_texture(WarningTexture::Warning warning, bool state);
@@ -826,6 +887,8 @@ private:
     bool _deactivate_search_toolbar_item();
     bool _activate_search_toolbar_item();
     bool _deactivate_collapse_toolbar_items();
+
+    float get_overlay_window_width() { return LayersEditing::get_overlay_window_width(); }
 
     static std::vector<float> _parse_colors(const std::vector<std::string>& colors);
 

@@ -1,10 +1,13 @@
 #ifndef MODELARRANGE_HPP
 #define MODELARRANGE_HPP
 
-#include <libslic3r/Model.hpp>
 #include <libslic3r/Arrange.hpp>
 
 namespace Slic3r {
+
+class Model;
+class ModelInstance;
+using ModelInstancePtrs = std::vector<ModelInstance*>;
 
 using arrangement::ArrangePolygon;
 using arrangement::ArrangePolygons;
@@ -17,7 +20,7 @@ using VirtualBedFn = std::function<void(arrangement::ArrangePolygon&)>;
 
 [[noreturn]] inline void throw_if_out_of_bed(arrangement::ArrangePolygon&) 
 {
-    throw std::runtime_error("Objects could not fit on the bed");
+    throw Slic3r::RuntimeError("Objects could not fit on the bed");
 }
 
 ArrangePolygons get_arrange_polys(const Model &model, ModelInstancePtrs &instances);

@@ -20,15 +20,20 @@ class PreferencesDialog : public DPIDialog
 	std::shared_ptr<ConfigOptionsGroup>	m_optgroup_general;
 	std::shared_ptr<ConfigOptionsGroup>	m_optgroup_camera;
 	std::shared_ptr<ConfigOptionsGroup>	m_optgroup_gui;
+#if ENABLE_ENVIRONMENT_MAP
+	std::shared_ptr<ConfigOptionsGroup>	m_optgroup_render;
+#endif // ENABLE_ENVIRONMENT_MAP
 	wxSizer*                            m_icon_size_sizer;
 	wxRadioBox*							m_layout_mode_box;
     bool                                isOSX {false};
 	bool								m_settings_layout_changed {false};
+	bool								m_seq_top_layer_only_changed{ false };
 public:
 	PreferencesDialog(wxWindow* parent);
 	~PreferencesDialog() {}
 
-	bool settings_layout_changed() { return m_settings_layout_changed; }
+	bool settings_layout_changed() const { return m_settings_layout_changed; }
+	bool seq_top_layer_only_changed() const { return m_seq_top_layer_only_changed; }
 
 	void	build();
 	void	accept();
