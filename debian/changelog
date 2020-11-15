@@ -1,3 +1,9 @@
+slic3r-prusa (2.3.0~alpha3-2) unstable; urgency=medium
+
+  * None fix
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Sun, 15 Nov 2020 13:52:52 +0100
+
 slic3r-prusa (2.3.0~alpha3-1) unstable; urgency=medium
 
   * Merge current master
